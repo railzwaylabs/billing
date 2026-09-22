@@ -1,25 +1,188 @@
 # Billing
 
-## Metrics
+An open-source usage-based billing engine for metering events, defining tiered prices, rating usage, and generating deterministic invoices.
 
-`admin-api`, `api`, and `rating` expose Prometheus metrics at `GET /metrics` on
-their HTTP address. The endpoint includes Go runtime, process CPU/memory, and
-HTTP request metrics.
+Billing answers **what should be billed**. Payment collection, card storage, and payment-provider orchestration are intentionally outside this repository.
 
-Configure deployment identity through:
+## Features
 
-- `BILLING_ORGANIZATION_ID` (defaults to `unknown`)
-- `BILLING_PROJECT_ID` (defaults to `unknown`)
-- `BILLING_ADMIN_ADDRESS` (defaults to `:8081`)
-- `BILLING_API_ADDRESS` (defaults to `:8080`)
-- `BILLING_RATING_ADDRESS` (defaults to `:8082`)
+- Organization-scoped meters, products, prices, customers, and subscriptions.
+- Batch usage ingestion with event deduplication and 24-hour request idempotency.
+- Fixed-point quantities and money; authoritative calculations do not use floating point.
+- Graduated price tiers and deterministic invoice lines.
+- Monthly rating worker with idempotent invoice generation.
+- GCP-style IAM roles, policies, service accounts, and `sk_live_` API keys.
+- Local console authentication, optional Google OIDC, and external JWT verification.
+- React console using Vite, Tailwind CSS, and shadcn components.
+- Prometheus metrics, Zap logging, and PostgreSQL policy synchronization.
 
-`organization_id`, `project_id`, and `service` are constant labels on every
-application metric. Set them from trusted IaC/deployment metadata, not from an
-HTTP request.
+## Components
 
-Disk and network usage are host/container metrics rather than application
-metrics. Collect them with the platform exporter (for example Nomad allocation
-metrics, cAdvisor, or node_exporter) and attach the same organization/project
-labels in the Prometheus scrape or service-discovery configuration. This lets
-dashboards join and aggregate all four resource dimensions consistently.
+| Component | Purpose | Default address |
+| --- | --- | --- |
+| `cmd/admin-api` | Console authentication and administration API | `:8081` without override |
+| `cmd/api` | Public API process; currently health and IAM runtime only | `:8080` |
+| `cmd/rating` | Background rating and invoice-generation worker | No HTTP listener |
+| `apps/console` | Billing administration console | `:5173` |
+
+`rating.WorkerModule` may be embedded in `admin-api` for an all-in-one deployment or run through `cmd/rating`. Do not run both concurrently without distributed locking.
+
+## Requirements
+
+- Go 1.25+
+- PostgreSQL with `pgcrypto` and `LISTEN/NOTIFY`
+- Node.js and pnpm for the console
+- A migration runner such as [golang-migrate](https://github.com/golang-migrate/migrate)
+
+## Quick start
+
+1. Create local configuration:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Apply migrations:
+
+   ```bash
+   migrate -path db/migrations \
+     -database "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable" up
+   ```
+
+3. Set a development API-key hashing secret in `.env`:
+
+   ```env
+   API_KEY_SECRET=replace-with-at-least-32-random-characters
+   ```
+
+4. Start the admin backend:
+
+   ```bash
+   go run ./cmd/admin-api
+   ```
+
+5. Install dependencies and start the console:
+
+   ```bash
+   corepack enable
+   pnpm install
+   pnpm dev
+   ```
+
+6. Open `http://localhost:5173`. The default development bootstrap credentials are `admin` / `admin`. Never use these credentials outside local development.
+
+7. If the worker is not embedded in `admin-api`, run it separately:
+
+   ```bash
+   go run ./cmd/rating
+   ```
+
+## Docker Compose
+
+Run the complete local stack with:
+
+```bash
+docker compose up --build
+```
+
+The stack starts PostgreSQL, applies migrations, and then starts:
+
+| Service | Local address |
+| --- | --- |
+| Console | http://localhost:5173 |
+| Admin API | http://localhost:8080 |
+| Public API | http://localhost:8081 |
+| PostgreSQL | localhost:5432 |
+| Rating worker | No exposed port |
+
+Follow logs or stop the stack with:
+
+```bash
+docker compose logs -f admin-api rating
+docker compose down
+```
+
+To also remove the local PostgreSQL volume and start with an empty database:
+
+```bash
+docker compose down -v
+```
+
+Compose defaults are for local development only. Override `DATABASE_PASSWORD`, `API_KEY_SECRET`, and `BOOTSTRAP_ADMIN_PASSWORD` through the shell or a local `.env` before using a shared environment. See [Configuration](docs/configuration.md) for production secret-management guidance.
+
+## Billing flow
+
+```text
+Create organization
+  -> create meter
+  -> create product and price tiers
+  -> create customer and subscription
+  -> ingest usage events
+  -> rate the completed period
+  -> generate draft invoice and lines
+```
+
+Rating aggregates immutable usage events for a half-open period `[start, end)`, applies subscribed price tiers, and persists auditable invoice-line snapshots.
+
+## Project structure
+
+```text
+apps/console/               React administration console
+cmd/admin-api/              Admin HTTP process
+cmd/api/                    Public HTTP process
+cmd/rating/                 Background rating process
+db/migrations/              Ordered PostgreSQL migrations
+internal/<context>/domain/  Entities, rules, and repository contracts
+internal/<context>/application/
+                            Use cases and orchestration
+internal/<context>/infrastructure/
+                            PostgreSQL, Casbin, and external adapters
+internal/<context>/transport/http/
+                            Gin handlers
+internal/platform/          Database, HTTP, logging, and metrics
+pkg/clock/                  Injectable system and fixed clocks
+```
+
+## Commands
+
+```bash
+# Backend
+go test ./...
+go run ./cmd/admin-api
+go run ./cmd/api
+go run ./cmd/rating
+
+# Console
+pnpm install
+pnpm dev
+pnpm build
+pnpm lint
+
+# Browser tests (install browsers once)
+pnpm test:e2e:install
+pnpm test:e2e
+pnpm test:e2e:report
+```
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Configuration](docs/configuration.md)
+- [Billing and rating](docs/billing-and-rating.md)
+- [HTTP API](docs/http-api.md)
+- [Development guide](docs/development.md)
+
+## Current limitations
+
+- The public API surface is not complete.
+- The scheduler currently closes the previous UTC calendar month.
+- Explicit IAM deny and conditional bindings are not implemented.
+- Payment collection is out of scope.
+- Multiple rating workers require distributed coordination for production.
+
+## Security
+
+- Keep `.env`, API-key secrets, OAuth secrets, and bootstrap credentials out of Git.
+- Use a least-privilege PostgreSQL role in deployed environments.
+- Enable secure cookies behind HTTPS.
+- Replace the bootstrap password immediately or disable bootstrapping after initialization.
