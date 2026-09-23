@@ -1,0 +1,29 @@
+
+# Dependencies and build output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+config.yaml
+
+# Playwright output
+**/playwright-report/
+**/test-results/
+**/blob-report/
+**/playwright/.cache/
+
+# Local development seed data
+db/seeds/*.local.sql
+
+# TypeScript incremental build state
+*.tsbuildinfo
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/

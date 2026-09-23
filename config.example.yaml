@@ -1,0 +1,65 @@
+ENVIRONMENT: development
+
+HTTP_ADDRESS: localhost:8080
+METRICS_ADDRESS: localhost:9090
+MANAGEMENT_ADDRESS: localhost:7070
+SERVER_REQUEST_TIMEOUT: 15s
+SERVER_SHUTDOWN_TIMEOUT: 10s
+
+CORS_ALLOWD_ORIGINS: http://localhost:8080
+
+DATABASE_TYPE: postgres
+DATABASE_HOST: localhost
+DATABASE_PORT: "5432"
+DATABASE_NAME: postgres
+DATABASE_USER: postgres
+DATABASE_PASSWORD: postgres
+DATABASE_SSL_MODE: disable
+DATABASE_MAX_OPEN_CONNS: 20
+DATABASE_MAX_IDLE_CONNS: 5
+DATABASE_CONN_MAX_LIFETIME: 30m
+DATABASE_CONN_MAX_IDLE_TIME: 5m
+RATING_INTERVAL: 1m
+
+IAM_ISSUER: https://identity.example.com
+IAM_AUDIENCE: billing
+IAM_JWKS_URL: https://identity.example.com/.well-known/jwks.json
+API_KEY_SECRET: replace-with-at-least-32-random-characters
+
+BILLING_ORGANIZATION_ID: unknown
+BILLING_PROJECT_ID: unknown
+
+EMAIL_PROVIDER: noop
+EMAIL_FROM: Billing <no-reply@billing.local>
+EMAIL_REPLY_TO: ""
+EMAIL_SMTP_HOST: ""
+EMAIL_SMTP_PORT: ""
+EMAIL_SMTP_USERNAME: ""
+EMAIL_SMTP_PASSWORD: ""
+EMAIL_SMTP_TLS_MODE: none
+EMAIL_SMTP_TIMEOUT: 10s
+
+SESSION_COOKIE_NAME: _SID
+SESSION_TTL: 24h
+SESSION_COOKIE_SECURE: false
+SESSION_COOKIE_SAME_SITE: lax
+
+# Creates the initial console administrator only when the users table is empty.
+# Store the real password in an environment variable or secret manager.
+BOOTSTRAP_ADMIN_ENABLED: true
+BOOTSTRAP_ADMIN_USERNAME: admin
+BOOTSTRAP_ADMIN_PASSWORD: admin
+BOOTSTRAP_ADMIN_EMAIL: admin@localhost
+BOOTSTRAP_ADMIN_DISPLAY_NAME: Administrator
+
+# Google OpenID Connect
+AUTH_GOOGLE_ENABLED: false
+AUTH_GOOGLE_CLIENT_ID: ""
+AUTH_GOOGLE_CLIENT_SECRET: ""
+AUTH_GOOGLE_DISCOVERY_URL: https://accounts.google.com/.well-known/openid-configuration
+AUTH_GOOGLE_REDIRECT_URL: http://localhost:8080/admin/v1/auth/providers/google/callback
+AUTH_GOOGLE_SUCCESS_REDIRECT_URL: http://localhost:5173
+AUTH_GOOGLE_SCOPES: openid profile email
+AUTH_GOOGLE_ALLOW_SIGN_UP: false
+AUTH_GOOGLE_AUTO_LOGIN: false
+AUTH_GOOGLE_ALLOWED_DOMAINS: ""

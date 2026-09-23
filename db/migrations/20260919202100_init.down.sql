@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS iam_audit_logs;
+DROP TABLE IF EXISTS iam_policy_versions;
+DROP TABLE IF EXISTS iam_policy_bindings;
+DROP TABLE IF EXISTS iam_api_keys;
+DROP TABLE IF EXISTS iam_service_accounts;
+DROP TABLE IF EXISTS iam_role_permissions;
+DROP TABLE IF EXISTS iam_roles;
+DROP TABLE IF EXISTS iam_permissions;
+DROP TABLE IF EXISTS iam_resource_types;
+DROP TABLE IF EXISTS iam_services;
+DROP TABLE IF EXISTS organizations;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS user_identities;
+DROP TABLE IF EXISTS user_password_credentials;
+DROP TABLE IF EXISTS users;

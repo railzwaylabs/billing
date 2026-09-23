@@ -1,0 +1,29 @@
+.git
+.gitignore
+.dockerignore
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+config.yaml
+
+# Dependencies and generated frontend output
+node_modules
+**/node_modules
+dist
+**/dist
+*.tsbuildinfo
+
+# Test output (keep test sources available)
+**/playwright-report
+**/test-results
+**/blob-report
+**/playwright/.cache
+coverage
+**/coverage
+
+# Local tooling
+.DS_Store
+.idea
+.vscode

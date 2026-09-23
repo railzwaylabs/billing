@@ -20,9 +20,9 @@ Billing answers **what should be billed**. Payment collection, card storage, and
 
 | Component | Purpose | Default address |
 | --- | --- | --- |
-| `cmd/admin-api` | Console authentication and administration API | `:8081` without override |
+| `cmd/admin-api` | Console authentication and administration API | HTTP `:8080`, metrics `:9090` |
 | `cmd/api` | Public API process; currently health and IAM runtime only | `:8080` |
-| `cmd/rating` | Background rating and invoice-generation worker | No HTTP listener |
+| `cmd/rating` | Background rating and invoice-generation worker | Metrics `:9090`; no business HTTP |
 | `apps/console` | Billing administration console | `:5173` |
 
 `rating.WorkerModule` may be embedded in `admin-api` for an all-in-one deployment or run through `cmd/rating`. Do not run both concurrently without distributed locking.
@@ -92,8 +92,11 @@ The stack starts PostgreSQL, applies migrations, and then starts:
 | Console | http://localhost:5173 |
 | Admin API | http://localhost:8080 |
 | Public API | http://localhost:8081 |
+| Admin metrics | http://localhost:9090/metrics |
+| Public API metrics | http://localhost:9091/metrics |
+| Rating metrics | http://localhost:9092/metrics |
 | PostgreSQL | localhost:5432 |
-| Rating worker | No exposed port |
+| Rating worker | Metrics only on `localhost:9092` |
 
 Follow logs or stop the stack with:
 

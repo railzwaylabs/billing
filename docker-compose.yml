@@ -1,0 +1,155 @@
+name: billing
+
+networks:
+  billing-net:
+    name: billing-net
+    external: true
+
+x-database-environment: &database-environment
+  DATABASE_TYPE: postgres
+  DATABASE_HOST: postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: postgres
+  DATABASE_USER: postgres
+  DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+  DATABASE_SSL_MODE: disable
+  DATABASE_MAX_OPEN_CONNS: "20"
+  DATABASE_MAX_IDLE_CONNS: "5"
+  DATABASE_CONN_MAX_LIFETIME: 30m
+  DATABASE_CONN_MAX_IDLE_TIME: 5m
+
+x-iam-environment: &iam-environment
+  IAM_ISSUER: ${IAM_ISSUER:-https://identity.example.com}
+  IAM_AUDIENCE: ${IAM_AUDIENCE:-billing}
+  IAM_JWKS_URL: ${IAM_JWKS_URL:-https://identity.example.com/.well-known/jwks.json}
+  API_KEY_SECRET: ${API_KEY_SECRET:-local-development-api-key-secret-change-me}
+
+services:
+  migrate:
+    image: migrate/migrate:v4.18.3
+    volumes:
+      - ./db/migrations:/migrations:ro
+    command:
+      - -path=/migrations
+      - -database=postgres://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}@postgres:5432/${DATABASE_NAME:-postgres}?sslmode=disable
+      - up
+    restart: "no"
+    networks:
+      - billing-net
+
+  admin-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: billing-backend:local
+    environment:
+      <<: [*database-environment, *iam-environment]
+      HTTP_ADDRESS: 0.0.0.0:8080
+      METRICS_ADDRESS: 0.0.0.0:9090
+      MANAGEMENT_ADDRESS: 0.0.0.0:7070
+      SESSION_COOKIE_NAME: _SID
+      SESSION_COOKIE_SECURE: "false"
+      SESSION_TTL: 24h
+      BOOTSTRAP_ADMIN_ENABLED: "true"
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@localhost}
+      BOOTSTRAP_ADMIN_DISPLAY_NAME: ${BOOTSTRAP_ADMIN_DISPLAY_NAME:-Administrator}
+      AUTH_GOOGLE_ENABLED: "false"
+      AUTH_GOOGLE_SUCCESS_REDIRECT_URL: http://localhost:5173
+      BILLING_ORGANIZATION_ID: local
+      BILLING_PROJECT_ID: local
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+      - "9091:9090"
+      - "7071:7070"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - billing-net
+
+  api:
+    image: billing-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["/app/api"]
+    environment:
+      <<: [*database-environment, *iam-environment]
+      HTTP_ADDRESS: 0.0.0.0:8080
+      METRICS_ADDRESS: 0.0.0.0:9090
+      MANAGEMENT_ADDRESS: 0.0.0.0:7070
+      BILLING_ORGANIZATION_ID: local
+      BILLING_PROJECT_ID: local
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8081:8080"
+      - "9092:9090"
+      - "7072:7070"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - billing-net
+
+  rating:
+    image: billing-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["/app/rating"]
+    environment:
+      <<: *database-environment
+      RATING_INTERVAL: ${RATING_INTERVAL:-1m}
+      METRICS_ADDRESS: 0.0.0.0:9090
+      MANAGEMENT_ADDRESS: 0.0.0.0:7070
+      BILLING_ORGANIZATION_ID: local
+      BILLING_PROJECT_ID: local
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "9093:9090"
+      - "7073:7070"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - billing-net
+
+  console:
+    build:
+      context: .
+      dockerfile: apps/console/Dockerfile
+    image: billing-console:local
+    depends_on:
+      admin-api:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - billing-net

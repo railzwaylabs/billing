@@ -1,0 +1,12 @@
+CREATE INDEX idx_organizations_cursor ON organizations (created_at DESC, id DESC);
+CREATE INDEX idx_users_cursor ON users (created_at DESC, id DESC);
+CREATE INDEX idx_meters_organization_cursor ON meters (organization_id, created_at DESC, id DESC);
+CREATE INDEX idx_products_organization_cursor ON products (organization_id, created_at DESC, id DESC);
+CREATE INDEX idx_prices_organization_cursor ON prices (organization_id, created_at DESC, id DESC);
+CREATE INDEX idx_customers_organization_cursor ON customers (organization_id, created_at DESC, id DESC);
+CREATE INDEX idx_subscriptions_organization_cursor ON subscriptions (organization_id, created_at DESC, id DESC);
+CREATE INDEX idx_usage_events_organization_cursor ON usage_events (organization_id, event_time DESC, id DESC);
+CREATE INDEX idx_invoices_organization_cursor ON invoices (organization_id, created_at DESC, id DESC);
+CREATE INDEX idx_iam_roles_cursor ON iam_roles (created_at DESC, id DESC);
+CREATE INDEX idx_iam_service_accounts_organization_cursor ON iam_service_accounts (organization_id, created_at DESC, id DESC);
+CREATE INDEX idx_iam_api_keys_service_account_cursor ON iam_api_keys (organization_id, service_account_id, created_at DESC, id DESC);

@@ -1,0 +1,12 @@
+DROP INDEX IF EXISTS idx_iam_api_keys_service_account_cursor;
+DROP INDEX IF EXISTS idx_iam_service_accounts_organization_cursor;
+DROP INDEX IF EXISTS idx_iam_roles_cursor;
+DROP INDEX IF EXISTS idx_invoices_organization_cursor;
+DROP INDEX IF EXISTS idx_usage_events_organization_cursor;
+DROP INDEX IF EXISTS idx_subscriptions_organization_cursor;
+DROP INDEX IF EXISTS idx_customers_organization_cursor;
+DROP INDEX IF EXISTS idx_prices_organization_cursor;
+DROP INDEX IF EXISTS idx_products_organization_cursor;
+DROP INDEX IF EXISTS idx_meters_organization_cursor;
+DROP INDEX IF EXISTS idx_organizations_cursor;
+DROP INDEX IF EXISTS idx_users_cursor;

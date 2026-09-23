@@ -1,0 +1,14 @@
+{
+  "name": "railzway-billing",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @railzway/billing-console dev",
+    "build": "pnpm --filter @railzway/billing-console build",
+    "lint": "pnpm --filter @railzway/billing-console lint",
+    "test:e2e:install": "pnpm --filter @railzway/billing-console test:e2e:install",
+    "test:e2e": "pnpm --filter @railzway/billing-console test:e2e",
+    "test:e2e:ui": "pnpm --filter @railzway/billing-console test:e2e:ui",
+    "test:e2e:report": "pnpm --filter @railzway/billing-console test:e2e:report"
+  },
+  "devDependencies": {}
+}
