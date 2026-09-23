@@ -1,6 +1,8 @@
 package main
 
 import (
+	"go.uber.org/fx"
+
 	cataloguerepository "github.com/railzwaylabs/billing/internal/catalogue/infrastructure/repository"
 	"github.com/railzwaylabs/billing/internal/config"
 	invoicerepository "github.com/railzwaylabs/billing/internal/invoice/infrastructure/repository"
@@ -13,7 +15,6 @@ import (
 	subscriptionrepository "github.com/railzwaylabs/billing/internal/subscription/infrastructure/repository"
 	usagerepository "github.com/railzwaylabs/billing/internal/usage/infrastructure/repository"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"go.uber.org/fx"
 )
 
 func main() {

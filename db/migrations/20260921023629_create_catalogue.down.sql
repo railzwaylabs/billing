@@ -1,3 +1,4 @@
-DROP TABLE IF EXISTS price_tiers;
+DROP TABLE IF EXISTS charge_tiers;
+DROP TABLE IF EXISTS price_charges;
 DROP TABLE IF EXISTS prices;
 DROP TABLE IF EXISTS products;

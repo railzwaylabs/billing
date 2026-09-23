@@ -62,6 +62,13 @@ services:
       BILLING_PROJECT_ID: local
       PROMETHEUS_URL: http://prometheus:9090
       PROMETHEUS_TIMEOUT: 10s
+      LOGS_PROVIDER: ${LOGS_PROVIDER:-loki}
+      LOGS_URL: ${LOGS_URL:-http://loki:3100}
+      LOGS_TENANT_ID: ${LOGS_TENANT_ID:-}
+      LOGS_USERNAME: ${LOGS_USERNAME:-}
+      LOGS_PASSWORD: ${LOGS_PASSWORD:-}
+      LOGS_TIMEOUT: ${LOGS_TIMEOUT:-10s}
+      LOGS_SERVICE_LABEL: ${LOGS_SERVICE_LABEL:-billing_service}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -142,6 +149,9 @@ services:
     build:
       context: .
       dockerfile: apps/console/Dockerfile
+      args:
+        VITE_APP_NAME: ${VITE_APP_NAME:-Billing Console}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-}
     image: billing-console:local
     depends_on:
       admin-api:

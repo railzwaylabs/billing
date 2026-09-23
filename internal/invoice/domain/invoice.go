@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
 	"github.com/railzwaylabs/billing/pkg/types"
 )
@@ -27,6 +28,7 @@ type Line struct {
 	SubscriptionItemID  uuid.UUID
 	ProductID           uuid.UUID
 	PriceID             uuid.UUID
+	PriceChargeID       uuid.UUID
 	MeterID             uuid.UUID
 	Description         string
 	UsageQuantity       shareddomain.Quantity
@@ -134,8 +136,8 @@ func NewInvoice(invoice Invoice, now time.Time) (Invoice, error) {
 }
 
 func validateLine(line Line, invoiceID, organizationID uuid.UUID, currency string) error {
-	if line.ProductID == uuid.Nil || line.PriceID == uuid.Nil || line.MeterID == uuid.Nil {
-		return fmt.Errorf("product, price, and meter are required")
+	if line.ProductID == uuid.Nil || line.PriceID == uuid.Nil || line.PriceChargeID == uuid.Nil || line.MeterID == uuid.Nil {
+		return fmt.Errorf("product, price, price charge, and meter are required")
 	}
 
 	if line.SubscriptionID == uuid.Nil && line.SubscriptionItemID == uuid.Nil {

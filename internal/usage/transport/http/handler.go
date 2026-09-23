@@ -3,14 +3,16 @@ package http
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	"github.com/railzwaylabs/billing/internal/usage/application"
 	"github.com/railzwaylabs/billing/internal/usage/domain"
-	"net/http"
-	"time"
 )
 
 type Handler struct{ service *application.Service }

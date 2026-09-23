@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -89,6 +90,9 @@ func (c *Client) QueryRange(ctx context.Context, query string, start, end time.T
 		number, err := strconv.ParseFloat(encoded, 64)
 		if err != nil {
 			return nil, fmt.Errorf("parse Prometheus value: %w", err)
+		}
+		if math.IsNaN(number) || math.IsInf(number, 0) {
+			continue
 		}
 		samples = append(samples, domain.Sample{Timestamp: int64(timestamp), Value: number})
 	}

@@ -25,9 +25,12 @@ CREATE TABLE subscription_items (
     organization_id UUID NOT NULL,
     subscription_id UUID NOT NULL,
     price_id UUID NOT NULL,
+    start_at TIMESTAMPTZ NOT NULL,
+    end_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     UNIQUE (id, organization_id),
+    CHECK(end_at IS NULL OR end_at > start_at),
     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
     FOREIGN KEY (subscription_id, organization_id)
         REFERENCES subscriptions(id, organization_id) ON DELETE CASCADE,

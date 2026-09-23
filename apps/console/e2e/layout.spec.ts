@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { base, openAuthenticated } from "./fixtures/mock-api";
+import { base, openAuthenticated, organization } from "./fixtures/mock-api";
 
 test("sidebar and content never overlap", async ({ page }) => {
   await openAuthenticated(page, `${base}/catalog/products`);
@@ -9,7 +9,9 @@ test("sidebar and content never overlap", async ({ page }) => {
   const insetBox = await inset.boundingBox();
   expect(sidebarBox).not.toBeNull();
   expect(insetBox).not.toBeNull();
-  expect(insetBox!.x).toBeGreaterThanOrEqual(sidebarBox!.x + sidebarBox!.width - 2);
+  expect(insetBox!.x).toBeGreaterThanOrEqual(
+    sidebarBox!.x + sidebarBox!.width - 2,
+  );
 });
 
 test("mobile sidebar opens as a sheet", async ({ page }) => {
@@ -20,11 +22,17 @@ test("mobile sidebar opens as a sheet", async ({ page }) => {
 
 test("editor actions remain reachable", async ({ page }) => {
   await openAuthenticated(page, `${base}/subscriptions/new`);
-  await page.getByRole("button", { name: "Save subscription" }).scrollIntoViewIfNeeded();
-  await expect(page.getByRole("button", { name: "Save subscription" })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Save subscription" })
+    .scrollIntoViewIfNeeded();
+  await expect(
+    page.getByRole("button", { name: "Save subscription" }),
+  ).toBeVisible();
 });
 
-test("data table toolbar has consistent spacing without a nested card", async ({ page }) => {
+test("data table toolbar has consistent spacing without a nested card", async ({
+  page,
+}) => {
   await openAuthenticated(page, `${base}/usage`);
   const search = page.getByPlaceholder("Search event ID…");
   const table = page.locator('[data-slot="table-container"]');
@@ -45,4 +53,23 @@ test("nested sidebar menus can be opened and closed", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Products" })).toBeVisible();
   await catalog.click();
   await expect(page.getByRole("link", { name: "Products" })).toBeHidden();
+});
+
+test("breadcrumb uses semantic labels instead of resource IDs", async ({
+  page,
+}) => {
+  await openAuthenticated(page, `${base}/catalog/products/new`);
+
+  const breadcrumb = page.getByRole("navigation", { name: "breadcrumb" });
+  await expect(breadcrumb).toContainText("Acme");
+  await expect(breadcrumb).toContainText("Catalog");
+  await expect(breadcrumb).toContainText("Products");
+  await expect(breadcrumb).toContainText("Create product");
+  await expect(breadcrumb).not.toContainText(organization.id);
+});
+
+test("editor back link returns to its resource list", async ({ page }) => {
+  await openAuthenticated(page, `${base}/meters/new`);
+  await page.getByRole("link", { name: "Meters" }).last().click();
+  await expect(page).toHaveURL(`${base}/meters`);
 });

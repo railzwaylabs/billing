@@ -1,14 +1,16 @@
 package http
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	"github.com/railzwaylabs/billing/internal/subscription/application"
 	"github.com/railzwaylabs/billing/internal/subscription/domain"
 	"github.com/railzwaylabs/billing/pkg/types"
-	"net/http"
-	"time"
 )
 
 type Handler struct{ service *application.Service }
@@ -27,7 +29,13 @@ type request struct {
 	EndDate    *time.Time    `json:"end_date"`
 	Status     domain.Status `json:"status"`
 	Metadata   types.JSONB   `json:"metadata"`
-	PriceIDs   []uuid.UUID   `json:"price_ids" binding:"required"`
+	Items      []itemRequest `json:"items" binding:"required"`
+}
+type itemRequest struct {
+	ID      uuid.UUID  `json:"id"`
+	PriceID uuid.UUID  `json:"price_id" binding:"required"`
+	StartAt time.Time  `json:"start_at"`
+	EndAt   *time.Time `json:"end_at"`
 }
 
 func ids(c *gin.Context, resource bool) (uuid.UUID, uuid.UUID, bool) {
@@ -46,16 +54,19 @@ func ids(c *gin.Context, resource bool) (uuid.UUID, uuid.UUID, bool) {
 	}
 	return o, id, true
 }
+
 func fail(c *gin.Context, status int, message string) {
 	c.JSON(status, gin.H{"error": gin.H{"code": "SUBSCRIPTION_INVALID", "message": message}})
 }
+
 func input(o uuid.UUID, r request) domain.Subscription {
 	v := domain.Subscription{OrganizationID: o, CustomerID: r.CustomerID, StartDate: r.StartDate, EndDate: r.EndDate, Status: r.Status, Metadata: r.Metadata}
-	for _, id := range r.PriceIDs {
-		v.Items = append(v.Items, domain.Item{PriceID: id})
+	for _, item := range r.Items {
+		v.Items = append(v.Items, domain.Item{ID: item.ID, PriceID: item.PriceID, StartAt: item.StartAt, EndAt: item.EndAt})
 	}
 	return v
 }
+
 func (h *Handler) list(c *gin.Context) {
 	o, _, ok := ids(c, false)
 	if !ok {
@@ -73,6 +84,7 @@ func (h *Handler) list(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"subscriptions": page.Items, "page_info": page.Info})
 }
+
 func (h *Handler) get(c *gin.Context) {
 	o, id, ok := ids(c, true)
 	if !ok {
@@ -85,37 +97,45 @@ func (h *Handler) get(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"subscription": v})
 }
+
 func (h *Handler) create(c *gin.Context) {
 	o, _, ok := ids(c, false)
 	if !ok {
 		return
 	}
+
 	var r request
 	if c.ShouldBindJSON(&r) != nil {
 		fail(c, 422, "Invalid subscription")
 		return
 	}
+
 	v, e := h.service.Create(c, input(o, r))
 	if e != nil {
 		fail(c, 422, e.Error())
 		return
 	}
+
 	c.JSON(http.StatusCreated, gin.H{"subscription": v})
 }
+
 func (h *Handler) update(c *gin.Context) {
 	o, id, ok := ids(c, true)
 	if !ok {
 		return
 	}
+
 	var r request
 	if c.ShouldBindJSON(&r) != nil {
 		fail(c, 422, "Invalid subscription")
 		return
 	}
+
 	v, e := h.service.Update(c, o, id, input(o, r))
 	if e != nil {
 		fail(c, 422, e.Error())
 		return
 	}
+
 	c.JSON(200, gin.H{"subscription": v})
 }

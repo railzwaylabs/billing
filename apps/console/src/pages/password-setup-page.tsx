@@ -56,40 +56,48 @@ export function PasswordSetupPage({ onComplete }: { onComplete: () => void }) {
           </p>
           <form onSubmit={change}>
             <FieldGroup>
-            <Field>
-              <FieldLabel>Current password</FieldLabel>
-              <Input
-                autoFocus
-                type="password"
-                autoComplete="current-password"
-                value={current}
-                onChange={(event) => setCurrent(event.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>New password</FieldLabel>
-              <Input
-                type="password"
-                autoComplete="new-password"
-                value={next}
-                onChange={(event) => setNext(event.target.value)}
-                placeholder="At least 12 characters"
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Confirm password</FieldLabel>
-              <Input
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(event) => setConfirm(event.target.value)}
-              />
-            </Field>
-            {error && <p className="form-error">{error}</p>}
-            <Button className="w-full" disabled={next.length < 12}>
-              Save password
-              <ArrowRight size={16} />
-            </Button>
+              <Field>
+                <FieldLabel hint="Enter the password used for this login session.">
+                  Current password
+                </FieldLabel>
+                <Input
+                  autoFocus
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Current password"
+                  value={current}
+                  onChange={(event) => setCurrent(event.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel hint="Use at least 12 characters and avoid reused passwords.">
+                  New password
+                </FieldLabel>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={next}
+                  onChange={(event) => setNext(event.target.value)}
+                  placeholder="At least 12 characters"
+                />
+              </Field>
+              <Field>
+                <FieldLabel hint="Repeat the new password exactly.">
+                  Confirm password
+                </FieldLabel>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Repeat the new password"
+                  value={confirm}
+                  onChange={(event) => setConfirm(event.target.value)}
+                />
+              </Field>
+              {error && <p className="form-error">{error}</p>}
+              <Button className="w-full" disabled={next.length < 12}>
+                Save password
+                <ArrowRight size={16} />
+              </Button>
             </FieldGroup>
           </form>
           <Button className="w-full skip-button" variant="ghost" onClick={skip}>

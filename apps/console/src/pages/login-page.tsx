@@ -60,32 +60,38 @@ export function LoginPage({
           <p className="muted">Sign in to manage your billing workspace.</p>
           <form onSubmit={submit}>
             <FieldGroup>
-            <Field>
-              <FieldLabel>Username</FieldLabel>
-              <Input
-                type="text"
-                inputMode="text"
-                autoComplete="username"
-                spellCheck={false}
-                autoFocus
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Password</FieldLabel>
-              <Input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </Field>
-            {error && <p className="form-error">{error}</p>}
-            <Button className="w-full" disabled={loading}>
-              {loading ? "Signing in…" : "Sign in"}
-              <ArrowRight size={16} />
-            </Button>
+              <Field>
+                <FieldLabel hint="Username for your billing console account.">
+                  Username
+                </FieldLabel>
+                <Input
+                  type="text"
+                  inputMode="text"
+                  autoComplete="username"
+                  spellCheck={false}
+                  autoFocus
+                  placeholder="admin"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel hint="Password for the selected console account.">
+                  Password
+                </FieldLabel>
+                <Input
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </Field>
+              {error && <p className="form-error">{error}</p>}
+              <Button className="w-full" disabled={loading}>
+                {loading ? "Signing in…" : "Sign in"}
+                <ArrowRight size={16} />
+              </Button>
             </FieldGroup>
           </form>
           {googleEnabled && (
@@ -97,7 +103,9 @@ export function LoginPage({
                 variant="outline"
                 className="w-full"
                 onClick={() =>
-                  location.assign(backendPath("/admin/v1/auth/providers/google/login"))
+                  location.assign(
+                    backendPath("/admin/v1/auth/providers/google/login"),
+                  )
                 }
               >
                 Continue with Google

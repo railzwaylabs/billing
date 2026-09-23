@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/fx"
+	"go.uber.org/zap"
+
 	"github.com/railzwaylabs/billing/internal/authn"
 	"github.com/railzwaylabs/billing/internal/consoleauth/application"
 	console "github.com/railzwaylabs/billing/internal/consoleauth/domain"
@@ -12,8 +15,6 @@ import (
 	"github.com/railzwaylabs/billing/internal/consoleauth/infrastructure/repository"
 	consolehttp "github.com/railzwaylabs/billing/internal/consoleauth/transport/http"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"go.uber.org/fx"
-	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -40,7 +41,7 @@ var Module = fx.Module(
 )
 
 func newService(repository console.Repository, config Config, clock clock.Clock) *application.Service {
-	return application.NewService(repository, application.Config{SessionTTL: config.SessionTTL}, clock)
+	return application.NewService(application.Params{Repository: repository, Config: application.Config{SessionTTL: config.SessionTTL}, Clock: clock})
 }
 
 func newGoogleClient(config Config, clock clock.Clock) (*googleauth.Client, error) {

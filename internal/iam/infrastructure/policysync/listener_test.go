@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/internal/iam/domain"
 )
 

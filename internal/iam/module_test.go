@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/fx"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+
 	"github.com/railzwaylabs/billing/internal/authn"
 	"github.com/railzwaylabs/billing/internal/consoleauth"
 	"github.com/railzwaylabs/billing/internal/platform/database"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"go.uber.org/fx"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 func TestModuleDependencyGraph(t *testing.T) {

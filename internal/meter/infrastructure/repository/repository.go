@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/railzwaylabs/billing/internal/meter/domain"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
-	"gorm.io/gorm"
 )
 
 type Repository struct{ db *gorm.DB }

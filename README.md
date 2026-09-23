@@ -14,7 +14,8 @@ Billing answers **what should be billed**. Payment collection, card storage, and
 - GCP-style IAM roles, policies, service accounts, and `sk_live_` API keys.
 - Local console authentication, optional Google OIDC, and external JWT verification.
 - React console using Vite, Tailwind CSS, and shadcn components.
-- Prometheus metrics, Zap logging, and PostgreSQL policy synchronization.
+- Prometheus metrics, structured Zap logging, Loki storage, Grafana Alloy
+  collection, and PostgreSQL policy synchronization.
 - Developer monitoring console with separate CPU, memory, disk, and network
   bar charts for daily, weekly, and monthly ranges.
 
@@ -88,8 +89,8 @@ docker compose -f infrastructure/docker-compose.yml up -d
 docker compose up --build
 ```
 
-The infrastructure stack starts PostgreSQL, Prometheus, and cAdvisor. The
-billing stack applies migrations and then starts:
+The infrastructure stack starts PostgreSQL, Prometheus, cAdvisor, Loki, and
+Grafana Alloy. The billing stack applies migrations and then starts:
 
 | Service | Local address |
 | --- | --- |
@@ -103,17 +104,26 @@ billing stack applies migrations and then starts:
 | Rating worker | Metrics only on `localhost:9093` |
 | Prometheus | http://localhost:9090 |
 | cAdvisor | http://localhost:8082 |
+| Loki API | http://localhost:3100 |
+| Alloy diagnostics | http://localhost:12345 |
 
-After signing in, open **Developer → Monitor** to view resource history.
-Daily shows the last 24 hours, Weekly shows the last 7 days, and Monthly shows
-the last 30 days. Prometheus retains 31 days of local metrics. The console uses
-the authenticated admin monitoring endpoint; Prometheus is not exposed to the
-browser.
+After signing in, open **Developer → Monitor** to view health and current
+utilization for Admin API, Public API, and Rating. Select a service to inspect
+its resource history. Daily shows the last 24 hours, Weekly shows the last 7
+days, and Monthly shows the last 30 days. Prometheus retains 31 days of local
+metrics and is not exposed directly to the browser.
+
+Open **Developer → Logs** to filter structured logs by service, level, text,
+and time range. The Compose admin API queries Loki over the private
+`billing-net` network. Alloy collects only Admin API, Public API, and Rating
+containers and normalizes their `billing_service` labels. Loki retains 31 days
+of local logs.
 
 Follow logs or stop the stack with:
 
 ```bash
 docker compose logs -f admin-api rating
+docker compose -f infrastructure/docker-compose.yml logs -f alloy loki
 docker compose down
 docker compose -f infrastructure/docker-compose.yml down
 ```
@@ -183,6 +193,7 @@ pnpm test:e2e:report
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Domain data model](docs/data-model.md)
 - [Configuration](docs/configuration.md)
 - [Billing and rating](docs/billing-and-rating.md)
 - [HTTP API](docs/http-api.md)

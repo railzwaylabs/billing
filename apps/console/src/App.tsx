@@ -18,7 +18,8 @@ import { IAMPage } from "@/pages/iam-page";
 import { MembersPage } from "@/pages/members-page";
 import { OrganizationOnboardingPage } from "@/pages/organization-onboarding-page";
 import { PasswordSetupPage } from "@/pages/password-setup-page";
-import { MonitorPage } from "@/pages/monitor-page";
+import { MonitorPage, ServiceMonitorPage } from "@/pages/monitor-page";
+import { LogsPage } from "@/pages/logs-page";
 
 export type SessionUser = { id: string; username: string };
 
@@ -107,39 +108,35 @@ export function App() {
       >
         <Route index element={<DashboardPage />} />
 
-        <Route path="meters" element={<MetersPage />}>
-          <Route path="new" element={<MetersPage />} />
-          <Route path=":meterId" element={<MetersPage />} />
-        </Route>
+        <Route path="meters" element={<MetersPage />} />
+        <Route path="meters/new" element={<MetersPage />} />
+        <Route path="meters/:meterId" element={<MetersPage />} />
 
         <Route path="catalog" element={<Navigate to="products" replace />} />
-        <Route path="catalog/products" element={<ProductsPage />}>
-          <Route path="new" element={<ProductsPage />} />
-          <Route path=":productId" element={<ProductsPage />} />
-        </Route>
-        <Route path="catalog/prices" element={<PricesPage />}>
-          <Route path="new" element={<PricesPage />} />
-          <Route path=":priceId" element={<PricesPage />} />
-        </Route>
+        <Route path="catalog/products" element={<ProductsPage />} />
+        <Route path="catalog/products/new" element={<ProductsPage />} />
+        <Route path="catalog/products/:productId" element={<ProductsPage />} />
+        <Route path="catalog/prices" element={<PricesPage />} />
+        <Route path="catalog/prices/new" element={<PricesPage />} />
+        <Route path="catalog/prices/:priceId" element={<PricesPage />} />
 
-        <Route path="subscriptions" element={<SubscriptionsPage />}>
-          <Route path="new" element={<SubscriptionsPage />} />
-          <Route path=":subscriptionId" element={<SubscriptionsPage />} />
-        </Route>
+        <Route path="subscriptions" element={<SubscriptionsPage />} />
+        <Route path="subscriptions/new" element={<SubscriptionsPage />} />
+        <Route
+          path="subscriptions/:subscriptionId"
+          element={<SubscriptionsPage />}
+        />
 
-        <Route path="usage" element={<UsagePage />}>
-          <Route path="ingest" element={<UsagePage />} />
-        </Route>
+        <Route path="usage" element={<UsagePage />} />
+        <Route path="usage/ingest" element={<UsagePage />} />
 
-        <Route path="customers" element={<CustomersPage />}>
-          <Route path="new" element={<CustomersPage />} />
-          <Route path=":customerId" element={<CustomersPage />} />
-        </Route>
+        <Route path="customers" element={<CustomersPage />} />
+        <Route path="customers/new" element={<CustomersPage />} />
+        <Route path="customers/:customerId" element={<CustomersPage />} />
 
-        <Route path="invoices" element={<InvoicesPage />}>
-          <Route path="new" element={<InvoicesPage />} />
-          <Route path=":invoiceId" element={<InvoicesPage />} />
-        </Route>
+        <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="invoices/new" element={<InvoicesPage />} />
+        <Route path="invoices/:invoiceId" element={<InvoicesPage />} />
 
         <Route
           path="developer"
@@ -148,23 +145,30 @@ export function App() {
         <Route
           path="developer/service-accounts"
           element={<ServiceAccountsPage />}
-        >
-          <Route path="new" element={<ServiceAccountsPage />} />
-          <Route
-            path=":serviceAccountId"
-            element={<ServiceAccountsPage />}
-          />
-        </Route>
-        <Route path="developer/api-keys" element={<APIKeysPage />}>
-          <Route path="new" element={<APIKeysPage />} />
-        </Route>
+        />
+        <Route
+          path="developer/service-accounts/new"
+          element={<ServiceAccountsPage />}
+        />
+        <Route
+          path="developer/service-accounts/:serviceAccountId"
+          element={<ServiceAccountsPage />}
+        />
+
+        <Route path="developer/api-keys" element={<APIKeysPage />} />
+        <Route path="developer/api-keys/new" element={<APIKeysPage />} />
+
         <Route path="developer/monitor" element={<MonitorPage />} />
+        <Route
+          path="developer/monitor/:serviceId"
+          element={<ServiceMonitorPage />}
+        />
+        <Route path="developer/logs" element={<LogsPage />} />
 
         <Route path="iam" element={<Navigate to="roles" replace />} />
-        <Route path="iam/roles" element={<IAMPage />}>
-          <Route path="new" element={<IAMPage />} />
-          <Route path=":roleId" element={<IAMPage />} />
-        </Route>
+        <Route path="iam/roles" element={<IAMPage />} />
+        <Route path="iam/roles/new" element={<IAMPage />} />
+        <Route path="iam/roles/:roleId" element={<IAMPage />} />
         <Route path="iam/members" element={<MembersPage />} />
         <Route path="iam/policy" element={<IAMPage />} />
 

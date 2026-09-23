@@ -1,10 +1,11 @@
 package rating
 
 import (
-	"github.com/railzwaylabs/billing/internal/rating/application"
-	ratingrepository "github.com/railzwaylabs/billing/internal/rating/infrastructure/repository"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+
+	"github.com/railzwaylabs/billing/internal/rating/application"
+	ratingrepository "github.com/railzwaylabs/billing/internal/rating/infrastructure/repository"
 )
 
 var Module = fx.Module("rating", fx.Provide(application.New))

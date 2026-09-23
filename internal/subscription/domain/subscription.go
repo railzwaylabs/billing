@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/pkg/types"
 )
 
@@ -21,6 +22,8 @@ type Item struct {
 	OrganizationID uuid.UUID
 	SubscriptionID uuid.UUID
 	PriceID        uuid.UUID
+	StartAt        time.Time
+	EndAt          *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -80,6 +83,18 @@ func NewSubscription(subscription Subscription, now time.Time) (Subscription, er
 
 		if item.OrganizationID != subscription.OrganizationID || item.SubscriptionID != subscription.ID || item.PriceID == uuid.Nil {
 			return Subscription{}, fmt.Errorf("invalid subscription item ownership")
+		}
+		if item.StartAt.IsZero() {
+			item.StartAt = subscription.StartDate
+		}
+		if item.StartAt.Before(subscription.StartDate) {
+			return Subscription{}, fmt.Errorf("subscription item cannot start before subscription")
+		}
+		if item.EndAt != nil && !item.EndAt.After(item.StartAt) {
+			return Subscription{}, fmt.Errorf("subscription item end must be after its start")
+		}
+		if subscription.EndDate != nil && (item.StartAt.After(*subscription.EndDate) || (item.EndAt != nil && item.EndAt.After(*subscription.EndDate))) {
+			return Subscription{}, fmt.Errorf("subscription item must be within subscription dates")
 		}
 
 		if _, exists := seenPrices[item.PriceID]; exists {

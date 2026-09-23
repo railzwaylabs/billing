@@ -4,11 +4,12 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"go.uber.org/fx"
+
 	iamdomain "github.com/railzwaylabs/billing/internal/iam/domain"
 	"github.com/railzwaylabs/billing/internal/organization/domain"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"go.uber.org/fx"
 )
 
 type IApplicationService interface {
@@ -69,6 +70,7 @@ type Service struct {
 	transaction TransactionManager
 }
 
+// Params declares the dependencies required by Service.
 type Params struct {
 	fx.In
 	Clock       clock.Clock
@@ -77,6 +79,7 @@ type Params struct {
 	Transaction TransactionManager
 }
 
+// NewService constructs the organization application service.
 func NewService(p Params) IApplicationService {
 	return &Service{clock: p.Clock, repo: p.Repository, owners: p.Owners, transaction: p.Transaction}
 }
@@ -85,10 +88,12 @@ func (s *Service) Create(ctx context.Context, command CreateCommand) (*domain.Or
 	if err := command.Owner.Validate(); err != nil {
 		return nil, err
 	}
+
 	organization, err := domain.NewOrganization(&domain.Organization{ID: command.ID, Name: command.Name, Slug: command.Slug}, s.clock.Now())
 	if err != nil {
 		return nil, err
 	}
+
 	err = s.transaction.Within(ctx, func(transactionContext context.Context) error {
 		if _, err := s.repo.Create(transactionContext, organization); err != nil {
 			return err
@@ -98,9 +103,11 @@ func (s *Service) Create(ctx context.Context, command CreateCommand) (*domain.Or
 	if err != nil {
 		return nil, err
 	}
+
 	if err := s.owners.ReloadPolicies(ctx); err != nil {
 		return organization, err
 	}
+
 	return organization, nil
 }
 
@@ -110,6 +117,7 @@ func (s *Service) List(ctx context.Context, principal iamdomain.Principal) ([]do
 	}
 	return s.repo.ListForPrincipal(ctx, string(principal.Type), principal.Issuer, principal.Subject)
 }
+
 func (s *Service) ListPage(ctx context.Context, principal iamdomain.Principal, page pagination.Request) (pagination.Page[domain.Organization], error) {
 	if err := principal.Validate(); err != nil {
 		return pagination.Page[domain.Organization]{}, err

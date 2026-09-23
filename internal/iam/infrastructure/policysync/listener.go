@@ -8,8 +8,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/railzwaylabs/billing/internal/iam/domain"
 	"go.uber.org/zap"
+
+	"github.com/railzwaylabs/billing/internal/iam/domain"
 )
 
 const channel = "billing_iam_policy_changed"

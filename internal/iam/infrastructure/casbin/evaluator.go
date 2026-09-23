@@ -10,6 +10,7 @@ import (
 	casbinlib "github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/internal/iam/domain"
 )
 

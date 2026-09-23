@@ -90,7 +90,9 @@ export function DateTimePicker({
   const [date = "", time = ""] = value.split("T");
 
   return (
-    <div className={cn("grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]", className)}>
+    <div
+      className={cn("grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem]", className)}
+    >
       <DatePicker
         value={date}
         min={min}

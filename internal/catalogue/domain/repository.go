@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 )
 
@@ -13,7 +14,6 @@ type ProductRepository interface {
 	List(context.Context, uuid.UUID) ([]Product, error)
 	ListPage(context.Context, uuid.UUID, pagination.Request) (pagination.Page[Product], error)
 	GetByID(context.Context, uuid.UUID, uuid.UUID) (Product, error)
-	GetByMeterID(context.Context, uuid.UUID, uuid.UUID) (Product, error)
 	Update(context.Context, Product) (Product, error)
 }
 

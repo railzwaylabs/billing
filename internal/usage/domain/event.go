@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
 )
 
@@ -26,18 +27,23 @@ func NewEvent(event Event, now time.Time) (Event, error) {
 	if event.ID == uuid.Nil {
 		event.ID = uuid.New()
 	}
+
 	event.EventID = strings.TrimSpace(event.EventID)
 	if event.OrganizationID == uuid.Nil || event.MeterID == uuid.Nil || event.CustomerID == uuid.Nil {
 		return Event{}, fmt.Errorf("organization, meter, and customer are required")
 	}
+
 	if event.EventID == "" || event.EventTime.IsZero() {
 		return Event{}, fmt.Errorf("event ID and event time are required")
 	}
+
 	if err := event.Value.Validate(); err != nil {
 		return Event{}, err
 	}
+
 	event.EventTime = event.EventTime.UTC()
 	event.IngestedAt = now.UTC()
+
 	return event, nil
 }
 
@@ -45,6 +51,7 @@ func NewBatch(events []Event, now time.Time) ([]Event, error) {
 	if len(events) == 0 || len(events) > MaxBatchSize {
 		return nil, fmt.Errorf("batch must contain between 1 and %d events", MaxBatchSize)
 	}
+
 	validated := make([]Event, len(events))
 	seen := make(map[string]struct{}, len(events))
 	var organizationID uuid.UUID
@@ -53,17 +60,21 @@ func NewBatch(events []Event, now time.Time) ([]Event, error) {
 		if err != nil {
 			return nil, fmt.Errorf("events[%d]: %w", i, err)
 		}
+
 		if i == 0 {
 			organizationID = item.OrganizationID
 		} else if item.OrganizationID != organizationID {
 			return nil, fmt.Errorf("all events must belong to one organization")
 		}
+
 		if _, exists := seen[item.EventID]; exists {
 			return nil, fmt.Errorf("duplicate event ID %q", item.EventID)
 		}
+
 		seen[item.EventID] = struct{}{}
 		validated[i] = item
 	}
+
 	return validated, nil
 }
 

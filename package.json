@@ -5,6 +5,8 @@
     "dev": "pnpm --filter @railzway/billing-console dev",
     "build": "pnpm --filter @railzway/billing-console build",
     "lint": "pnpm --filter @railzway/billing-console lint",
+    "format:apps": "pnpm --filter './apps/*' format",
+    "format:apps:check": "pnpm --filter './apps/*' format:check",
     "test:e2e:install": "pnpm --filter @railzway/billing-console test:e2e:install",
     "test:e2e": "pnpm --filter @railzway/billing-console test:e2e",
     "test:e2e:ui": "pnpm --filter @railzway/billing-console test:e2e:ui",

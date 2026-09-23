@@ -3,10 +3,12 @@ package iam
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/fx"
+	"go.uber.org/zap"
+
 	"github.com/railzwaylabs/billing/internal/authn"
 	"github.com/railzwaylabs/billing/internal/iam/application"
 	"github.com/railzwaylabs/billing/internal/iam/domain"
@@ -16,9 +18,6 @@ import (
 	"github.com/railzwaylabs/billing/internal/iam/infrastructure/repository"
 	iamhttp "github.com/railzwaylabs/billing/internal/iam/transport/http"
 	"github.com/railzwaylabs/billing/internal/platform/database"
-	"github.com/railzwaylabs/billing/pkg/clock"
-	"go.uber.org/fx"
-	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -61,12 +60,7 @@ func newAPIKeyCodec(config Config) (domain.APIKeyGenerator, error) {
 	return apiKeyCodec.NewCodec(config.APIKeySecret)
 }
 
-func newVerifier(config Config, clock clock.Clock) (*authn.Verifier, error) {
-	return authn.NewVerifier(config.Authentication, clock)
-}
-
 func newPolicyListener(config Config, databaseConfig database.Config, store domain.PolicyStore, evaluator domain.Evaluator, logger *zap.Logger) *policysync.Listener {
-	fmt.Printf("databaseConfig.DSN(): %v\n", databaseConfig.DSN())
 	return policysync.NewListener(databaseConfig.DSN(), store, evaluator, config.PolicyPollInterval, logger)
 }
 

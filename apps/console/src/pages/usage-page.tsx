@@ -11,6 +11,7 @@ import {
 import { RelationCombobox } from "@/components/relation-combobox";
 import { DataTable } from "@/components/data-table";
 import { DateTimePicker } from "@/components/date-picker";
+import { NumericInput } from "@/components/numeric-input";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useCursorPagination } from "@/hooks/use-cursor-pagination";
 
 type Draft = {
   eventId: string;
@@ -40,7 +42,7 @@ const micros = (value: string) => {
   const [whole = "0", fraction = ""] = value.split(".");
   return Number(
     BigInt(whole || "0") * 1_000_000n +
-      BigInt((fraction + "000000").slice(0, 6)),
+    BigInt((fraction + "000000").slice(0, 6)),
   );
 };
 
@@ -48,25 +50,30 @@ export function UsagePage() {
   const { organization } = useOutletContext<{ organization: Organization }>();
   const navigate = useNavigate();
   const client = organizationApi(organization.id);
+  const listPath = `/organizations/${organization.id}/usage`;
   const ingest = location.pathname.endsWith("/ingest");
   const [events, setEvents] = useState<UsageEvent[]>([]);
   const [meters, setMeters] = useState<Meter[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [drafts, setDrafts] = useState<Draft[]>([empty()]);
   const [error, setError] = useState("");
+  const pagination = useCursorPagination();
   useEffect(() => {
     void Promise.all([
-      client.meters(),
-      client.customers(),
-      ...(ingest ? [] : [client.usageEvents()]),
+      client.meters({ limit: 100 }),
+      client.customers({ limit: 100 }),
+      ...(ingest ? [] : [client.usageEvents(pagination.request)]),
     ])
       .then(([m, c, e]) => {
         setMeters(m.meters);
         setCustomers(c.customers);
-        if (e) setEvents(e.events);
+        if (e) {
+          setEvents(e.events);
+          pagination.setPageInfo(e.page_info);
+        }
       })
       .catch((cause) => setError(cause.message));
-  }, [organization.id, ingest]);
+  }, [organization.id, ingest, pagination.cursor]);
   function change(index: number, patch: Partial<Draft>) {
     setDrafts((values) =>
       values.map((value, position) =>
@@ -85,7 +92,7 @@ export function UsagePage() {
           event_time: new Date(draft.eventTime).toISOString(),
         })),
       });
-      navigate("..");
+      navigate(listPath, { replace: true });
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Unable to ingest usage",
@@ -97,7 +104,7 @@ export function UsagePage() {
     return (
       <main className="content editor-page usage-editor">
         <Button variant="ghost" size="sm" asChild className="mb-6 -ml-3">
-          <Link to="..">
+          <Link to={listPath}>
             <ArrowLeft />
             Usage events
           </Link>
@@ -141,13 +148,16 @@ export function UsagePage() {
                 </div>
                 <FieldGroup className="grid gap-4 md:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor={`event-id-${index}`}>
+                    <FieldLabel
+                      htmlFor={`event-id-${index}`}
+                      hint="Unique producer-defined identifier used to reject duplicate usage events."
+                    >
                       Event ID
                     </FieldLabel>
                     <Input
                       type="text"
                       inputMode="text"
-                      pattern="[A-Za-z0-9][A-Za-z0-9._:-]*"
+                      pattern="[A-Za-z0-9][A-Za-z0-9._:\-]*"
                       spellCheck={false}
                       id={`event-id-${index}`}
                       required
@@ -159,7 +169,9 @@ export function UsagePage() {
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>Meter</FieldLabel>
+                    <FieldLabel hint="Meter that defines the unit and aggregation for this event.">
+                      Meter
+                    </FieldLabel>
                     <RelationCombobox
                       value={draft.meterId}
                       onValueChange={(value) =>
@@ -175,7 +187,9 @@ export function UsagePage() {
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>Customer</FieldLabel>
+                    <FieldLabel hint="Customer whose subscription will be billed for this usage.">
+                      Customer
+                    </FieldLabel>
                     <RelationCombobox
                       value={draft.customerId}
                       onValueChange={(value) =>
@@ -190,14 +204,15 @@ export function UsagePage() {
                     />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor={`event-value-${index}`}>
+                    <FieldLabel
+                      htmlFor={`event-value-${index}`}
+                      hint="Non-negative quantity expressed in the selected meter's unit."
+                    >
                       Value
                     </FieldLabel>
-                    <Input
-                      type="text"
+                    <NumericInput
                       id={`event-value-${index}`}
-                      inputMode="decimal"
-                      pattern="-?[0-9]+(?:\.[0-9]+)?"
+                      placeholder="1"
                       value={draft.value}
                       onChange={(event) =>
                         change(index, { value: event.target.value })
@@ -205,7 +220,10 @@ export function UsagePage() {
                     />
                   </Field>
                   <Field className="md:col-span-2">
-                    <FieldLabel htmlFor={`event-time-${index}`}>
+                    <FieldLabel
+                      htmlFor={`event-time-${index}`}
+                      hint="Business timestamp used to place usage in a billing period."
+                    >
                       Occurred at
                     </FieldLabel>
                     <DateTimePicker
@@ -260,10 +278,15 @@ export function UsagePage() {
           </Link>
         </Button>
       </div>
-      <Card className="mt-8">
-        <CardContent>
+      <Card>
+        <CardContent className="pt-6">
           <DataTable
             data={events}
+            cursorPagination={{
+              cursor: pagination.cursor,
+              pageInfo: pagination.pageInfo,
+              onCursorChange: pagination.setCursor,
+            }}
             searchKey="EventID"
             searchPlaceholder="Search event ID…"
             columns={[

@@ -5,8 +5,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/railzwaylabs/billing/internal/rating/application"
 	"gorm.io/gorm"
+
+	"github.com/railzwaylabs/billing/internal/rating/application"
 )
 
 type SchedulerRepository struct {

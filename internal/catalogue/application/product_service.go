@@ -4,27 +4,32 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"go.uber.org/fx"
+
 	"github.com/railzwaylabs/billing/internal/catalogue/domain"
-	meterdomain "github.com/railzwaylabs/billing/internal/meter/domain"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	"github.com/railzwaylabs/billing/pkg/clock"
 )
 
+// ProductService coordinates product lifecycle use cases.
 type ProductService struct {
 	products domain.ProductRepository
-	meters   meterdomain.Repository
 	clock    clock.Clock
 }
 
-func NewProductService(products domain.ProductRepository, meters meterdomain.Repository, clock clock.Clock) *ProductService {
-	return &ProductService{products: products, meters: meters, clock: clock}
+// ProductParams declares ProductService dependencies.
+type ProductParams struct {
+	fx.In
+	Products domain.ProductRepository
+	Clock    clock.Clock
+}
+
+// NewProductService constructs ProductService.
+func NewProductService(p ProductParams) *ProductService {
+	return &ProductService{products: p.Products, clock: p.Clock}
 }
 
 func (s *ProductService) Create(ctx context.Context, v domain.Product) (domain.Product, error) {
-	if _, err := s.meters.GetByID(ctx, v.OrganizationID, v.MeterID); err != nil {
-		return domain.Product{}, err
-	}
-
 	v, err := domain.NewProduct(v, s.clock.Now())
 	if err != nil {
 		return domain.Product{}, err
@@ -47,10 +52,6 @@ func (s *ProductService) Get(ctx context.Context, o, id uuid.UUID) (domain.Produ
 func (s *ProductService) Update(ctx context.Context, o, id uuid.UUID, v domain.Product) (domain.Product, error) {
 	old, err := s.products.GetByID(ctx, o, id)
 	if err != nil {
-		return domain.Product{}, err
-	}
-
-	if _, err = s.meters.GetByID(ctx, o, v.MeterID); err != nil {
 		return domain.Product{}, err
 	}
 

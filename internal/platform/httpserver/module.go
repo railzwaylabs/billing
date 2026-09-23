@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/railzwaylabs/billing/internal/platform/metrics"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+
+	"github.com/railzwaylabs/billing/internal/platform/metrics"
 )
 
 type Config struct {
@@ -43,6 +44,7 @@ func corsMiddleware(configured string) gin.HandlerFunc {
 			allowed[value] = struct{}{}
 		}
 	}
+
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
 		_, accepted := allowed[origin]
@@ -53,14 +55,17 @@ func corsMiddleware(configured string) gin.HandlerFunc {
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			c.Header("Vary", "Origin")
 		}
+
 		if c.Request.Method == http.MethodOptions {
 			if origin == "" || !accepted {
 				c.AbortWithStatus(http.StatusForbidden)
 				return
 			}
+
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
+
 		c.Next()
 	}
 }

@@ -25,6 +25,7 @@ CREATE TABLE invoices (
     UNIQUE (organization_id, customer_id, billing_period_start, billing_period_end),
     UNIQUE (id, organization_id),
     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+	FOREIGN KEY (currency) REFERENCES currencies(code) ON DELETE RESTRICT,
     FOREIGN KEY (customer_id, organization_id)
         REFERENCES customers(id, organization_id) ON DELETE CASCADE
 );
@@ -41,6 +42,7 @@ CREATE TABLE invoice_lines (
   subscription_item_id UUID,
   product_id UUID NOT NULL,
   price_id UUID NOT NULL,
+  price_charge_id UUID NOT NULL,
   meter_id UUID NOT NULL,
   description TEXT NOT NULL,
   usage_quantity DECIMAL(19, 6) NOT NULL,
@@ -70,6 +72,8 @@ CREATE TABLE invoice_lines (
       REFERENCES products(id, organization_id) ON DELETE RESTRICT,
   FOREIGN KEY (price_id, organization_id)
       REFERENCES prices(id, organization_id) ON DELETE RESTRICT,
+  FOREIGN KEY (price_charge_id, organization_id)
+      REFERENCES price_charges(id, organization_id) ON DELETE RESTRICT,
   FOREIGN KEY (meter_id, organization_id)
       REFERENCES meters(id, organization_id) ON DELETE RESTRICT
 );
@@ -80,4 +84,5 @@ CREATE INDEX idx_invoice_lines_subscription_id ON invoice_lines (subscription_id
 CREATE INDEX idx_invoice_lines_subscription_item_id ON invoice_lines (subscription_item_id);
 CREATE INDEX idx_invoice_lines_product_id ON invoice_lines (product_id);
 CREATE INDEX idx_invoice_lines_price_id ON invoice_lines (price_id);
+CREATE INDEX idx_invoice_lines_price_charge_id ON invoice_lines (price_charge_id);
 CREATE INDEX idx_invoice_lines_meter_id ON invoice_lines (meter_id);

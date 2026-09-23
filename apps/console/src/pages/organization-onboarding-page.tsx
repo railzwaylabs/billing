@@ -56,52 +56,56 @@ export function OrganizationOnboardingPage({
         <CardContent>
           <form onSubmit={submit}>
             <FieldGroup>
-            <Field>
-              <FieldLabel>Organization name</FieldLabel>
-              <Input
-                type="text"
-                inputMode="text"
-                autoComplete="organization"
-                autoFocus
-                required
-                value={name}
-                placeholder="Acme, Inc."
-                onChange={(event) => {
-                  const nextName = event.target.value;
-                  setName(nextName);
-                  if (!slugEdited) {
-                    setSlug(
-                      nextName
-                        .toLowerCase()
-                        .replace(/[^a-z0-9]+/g, "-")
-                        .replace(/^-|-$/g, ""),
-                    );
-                  }
-                }}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Organization slug</FieldLabel>
-              <Input
-                type="text"
-                inputMode="text"
-                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                spellCheck={false}
-                required
-                value={slug}
-                placeholder="acme"
-                onChange={(event) => {
-                  setSlugEdited(true);
-                  setSlug(event.target.value);
-                }}
-              />
-            </Field>
-            {error && <p className="form-error">{error}</p>}
-            <div className="onboarding-actions">
-              <Button disabled={submitting}>
-                {submitting ? "Creating…" : "Create organization"}
-              </Button>
-            </div>
+              <Field>
+                <FieldLabel hint="Human-readable organization name shown throughout the console.">
+                  Organization name
+                </FieldLabel>
+                <Input
+                  type="text"
+                  inputMode="text"
+                  autoComplete="organization"
+                  autoFocus
+                  required
+                  value={name}
+                  placeholder="Acme, Inc."
+                  onChange={(event) => {
+                    const nextName = event.target.value;
+                    setName(nextName);
+                    if (!slugEdited) {
+                      setSlug(
+                        nextName
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]+/g, "-")
+                          .replace(/^-|-$/g, ""),
+                      );
+                    }
+                  }}
+                />
+              </Field>
+              <Field>
+                <FieldLabel hint="Stable lowercase identifier used in IAM resource names; it cannot be changed later.">
+                  Organization slug
+                </FieldLabel>
+                <Input
+                  type="text"
+                  inputMode="text"
+                  pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                  spellCheck={false}
+                  required
+                  value={slug}
+                  placeholder="acme"
+                  onChange={(event) => {
+                    setSlugEdited(true);
+                    setSlug(event.target.value);
+                  }}
+                />
+              </Field>
+              {error && <p className="form-error">{error}</p>}
+              <div className="onboarding-actions">
+                <Button disabled={submitting}>
+                  {submitting ? "Creating…" : "Create organization"}
+                </Button>
+              </div>
             </FieldGroup>
           </form>
         </CardContent>

@@ -75,6 +75,8 @@ resource actions are:
 | `roles` | `create`, `get`, `list`, `update`, `delete` |
 | `serviceAccounts` | `create`, `get`, `list`, `update`, `disable` |
 | `apiKeys` | `create`, `get`, `list`, `revoke` |
+| `monitoring` | `get` |
+| `logs` | `list` |
 
 ## Roles
 
@@ -87,7 +89,16 @@ cannot be modified as custom roles.
 | `roles/admin` | All billing and IAM permissions |
 | `roles/billingAdmin` | Billing-resource administration plus read-only IAM visibility |
 | `roles/iamAdmin` | Role, policy, service-account, and API-key administration |
+| `roles/developer` | Service-account and API-key management plus service monitoring and logs |
 | `roles/viewer` | Read-only access through `get`, `list`, policy-read, and permission-test actions |
+
+The Console evaluates the active principal's permissions when rendering the
+Developer navigation. Service accounts require
+`billing.serviceAccounts.list`, API keys additionally require
+`billing.apiKeys.list`, Monitor requires `billing.monitoring.get`, and Logs
+requires `billing.logs.list`. Hiding navigation is only a UX concern: the
+monitoring and log endpoints independently enforce their permission in the
+admin API.
 
 Custom roles belong to one organization. Their canonical names are generated
 as:

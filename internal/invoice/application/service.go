@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"go.uber.org/fx"
+
 	catalogue "github.com/railzwaylabs/billing/internal/catalogue/domain"
 	customer "github.com/railzwaylabs/billing/internal/customer/domain"
 	"github.com/railzwaylabs/billing/internal/invoice/domain"
@@ -12,9 +14,9 @@ import (
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	subscription "github.com/railzwaylabs/billing/internal/subscription/domain"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"go.uber.org/fx"
 )
 
+// Service coordinates invoice validation, persistence, and numbering settings.
 type Service struct {
 	clock         clock.Clock
 	invoices      domain.Repository
@@ -25,6 +27,7 @@ type Service struct {
 	subscriptions subscription.Repository
 }
 
+// Params declares the dependencies required by Service.
 type Params struct {
 	fx.In
 	Clock         clock.Clock
@@ -36,6 +39,7 @@ type Params struct {
 	Subscriptions subscription.Repository
 }
 
+// New constructs the invoice application service.
 func New(p Params) *Service {
 	return &Service{
 		invoices:      p.Invoices,
@@ -68,8 +72,19 @@ func (s *Service) validate(ctx context.Context, v domain.Invoice) error {
 			return e
 		}
 
-		if price.ProductID != product.ID || product.MeterID != l.MeterID {
-			return fmt.Errorf("invoice line product, price, and meter mismatch")
+		chargeMatches := false
+		for _, charge := range price.Charges {
+			if charge.ID == l.PriceChargeID && charge.MeterID == l.MeterID {
+				chargeMatches = true
+				break
+			}
+		}
+
+		if price.ProductID != product.ID || !chargeMatches {
+			return fmt.Errorf("invoice line product, price, charge, and meter mismatch")
+		}
+		if price.Currency != l.Amount.Currency {
+			return fmt.Errorf("invoice line currency must match price currency")
 		}
 
 		if l.SubscriptionID != uuid.Nil {
@@ -102,6 +117,7 @@ func (s *Service) Create(ctx context.Context, v domain.Invoice) (domain.Invoice,
 func (s *Service) List(ctx context.Context, o uuid.UUID) ([]domain.Invoice, error) {
 	return s.invoices.List(ctx, o)
 }
+
 func (s *Service) ListPage(ctx context.Context, o uuid.UUID, page pagination.Request) (pagination.Page[domain.Invoice], error) {
 	return s.invoices.ListPage(ctx, o, page)
 }
@@ -110,6 +126,8 @@ func (s *Service) Get(ctx context.Context, o, id uuid.UUID) (domain.Invoice, err
 	return s.invoices.GetByID(ctx, o, id)
 }
 
+// Update permits corrections only while an invoice remains a draft. Generated
+// line snapshots and the allocated invoice number are retained across updates.
 func (s *Service) Update(ctx context.Context, o, id uuid.UUID, v domain.Invoice) (domain.Invoice, error) {
 	old, e := s.invoices.GetByID(ctx, o, id)
 	if e != nil {
@@ -144,15 +162,19 @@ func (s *Service) UpdateNumberSettings(ctx context.Context, organizationID uuid.
 	if err := domain.ValidateInvoiceNumberFormat(pattern); err != nil {
 		return domain.NumberSettings{}, err
 	}
+
 	current, err := s.invoices.GetNumberSettings(ctx, organizationID)
 	if err != nil {
 		return domain.NumberSettings{}, err
 	}
+
 	now := s.clock.Now().UTC()
 	if current.CreatedAt.IsZero() {
 		current.CreatedAt = now
 	}
+
 	current.NumberFormat = pattern
 	current.UpdatedAt = now
+
 	return s.invoices.UpdateNumberSettings(ctx, current)
 }

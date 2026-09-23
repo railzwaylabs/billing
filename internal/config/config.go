@@ -3,21 +3,23 @@ package config
 import (
 	"time"
 
+	"github.com/spf13/viper"
+
 	"github.com/railzwaylabs/billing/internal/authn"
 	"github.com/railzwaylabs/billing/internal/consoleauth"
 	"github.com/railzwaylabs/billing/internal/consoleauth/application"
 	googleauth "github.com/railzwaylabs/billing/internal/consoleauth/infrastructure/google"
 	"github.com/railzwaylabs/billing/internal/iam"
+	"github.com/railzwaylabs/billing/internal/logviewer"
 	"github.com/railzwaylabs/billing/internal/monitoring"
 	"github.com/railzwaylabs/billing/internal/platform/database"
 	"github.com/railzwaylabs/billing/internal/platform/httpserver"
 	"github.com/railzwaylabs/billing/internal/platform/metrics"
 	"github.com/railzwaylabs/billing/internal/platform/pprof"
 	ratingapplication "github.com/railzwaylabs/billing/internal/rating/application"
-	"github.com/spf13/viper"
 )
 
-func Admin() (database.Config, httpserver.Config, metrics.Config, pprof.Config, iam.Config, consoleauth.Config, monitoring.Config, error) {
+func Admin() (database.Config, httpserver.Config, metrics.Config, pprof.Config, iam.Config, consoleauth.Config, monitoring.Config, logviewer.Config, error) {
 	databaseConfig, httpConfig, metricsConfig, managementConfig, iamConfig, err := load("admin_api")
 	settings := newSettings()
 	return databaseConfig, httpConfig, metricsConfig, managementConfig, iamConfig, consoleauth.Config{
@@ -46,6 +48,14 @@ func Admin() (database.Config, httpserver.Config, metrics.Config, pprof.Config, 
 			},
 		}, monitoring.Config{
 			URL: settings.GetString("PROMETHEUS_URL"), Timeout: settings.GetDuration("PROMETHEUS_TIMEOUT"),
+		}, logviewer.Config{
+			Provider:     settings.GetString("LOGS_PROVIDER"),
+			URL:          settings.GetString("LOGS_URL"),
+			TenantID:     settings.GetString("LOGS_TENANT_ID"),
+			Username:     settings.GetString("LOGS_USERNAME"),
+			Password:     settings.GetString("LOGS_PASSWORD"),
+			Timeout:      settings.GetDuration("LOGS_TIMEOUT"),
+			ServiceLabel: settings.GetString("LOGS_SERVICE_LABEL"),
 		}, err
 }
 
@@ -79,6 +89,8 @@ func load(name string) (database.Config, httpserver.Config, metrics.Config, ppro
 		MaxIdleConns:    settings.GetInt("DATABASE_MAX_IDLE_CONNS"),
 		ConnMaxLifetime: settings.GetDuration("DATABASE_CONN_MAX_LIFETIME"),
 		ConnMaxIdleTime: settings.GetDuration("DATABASE_CONN_MAX_IDLE_TIME"),
+		LogLevel:        settings.GetString("DATABASE_LOG_LEVEL"),
+		SlowThreshold:   settings.GetDuration("DATABASE_SLOW_QUERY_THRESHOLD"),
 	}
 
 	iamConfig := iam.Config{PolicyPollInterval: 30 * time.Second, Authentication: authn.Config{Issuer: issuer, Audience: audience, JWKSURL: jwksURL}, APIKeySecret: apiKeySecret}
@@ -115,9 +127,15 @@ func newSettings() *viper.Viper {
 	settings.SetDefault("DATABASE_MAX_IDLE_CONNS", 5)
 	settings.SetDefault("DATABASE_CONN_MAX_LIFETIME", 30*time.Minute)
 	settings.SetDefault("DATABASE_CONN_MAX_IDLE_TIME", 5*time.Minute)
+	settings.SetDefault("DATABASE_LOG_LEVEL", "warn")
+	settings.SetDefault("DATABASE_SLOW_QUERY_THRESHOLD", 200*time.Millisecond)
 	settings.SetDefault("RATING_INTERVAL", time.Minute)
 	settings.SetDefault("PROMETHEUS_URL", "http://localhost:9090")
 	settings.SetDefault("PROMETHEUS_TIMEOUT", 10*time.Second)
+	settings.SetDefault("LOGS_PROVIDER", "disabled")
+	settings.SetDefault("LOGS_URL", "http://localhost:3100")
+	settings.SetDefault("LOGS_TIMEOUT", 10*time.Second)
+	settings.SetDefault("LOGS_SERVICE_LABEL", "billing_service")
 	settings.SetDefault("BILLING_ORGANIZATION_ID", "unknown")
 	settings.SetDefault("BILLING_PROJECT_ID", "unknown")
 	settings.SetDefault("SESSION_COOKIE_NAME", "_billing_session")

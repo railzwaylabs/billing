@@ -6,12 +6,40 @@ export type PageInfo = { next_cursor?: string; has_more: boolean };
 export type MonitoringRange = "day" | "week" | "month";
 export type MonitoringSample = { timestamp: number; value: number };
 export type ResourceMetrics = {
+  service: string;
   range: MonitoringRange;
   step_seconds: number;
   cpu: { used: MonitoringSample[]; allocated: MonitoringSample[] };
   memory: { used: MonitoringSample[]; allocated: MonitoringSample[] };
   disk: { used: MonitoringSample[]; allocated: MonitoringSample[] };
   network: { receive: MonitoringSample[]; transmit: MonitoringSample[] };
+};
+export type ServiceHealthStatus =
+  "healthy" | "degraded" | "unhealthy" | "unknown";
+export type MonitoredService = {
+  id: string;
+  name: string;
+  description: string;
+  status: ServiceHealthStatus;
+  cpu_usage?: number;
+  memory_usage_bytes?: number;
+  updated_at?: string;
+};
+export type LogService = {
+  id: string;
+  name: string;
+  description: string;
+};
+export type LogEntry = {
+  timestamp: string;
+  service: string;
+  level?: string;
+  message: string;
+  fields?: Record<string, unknown>;
+};
+export type LogPage = {
+  entries: LogEntry[];
+  next_cursor?: string;
 };
 const backendURL = (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
 export const backendPath = (path: string) => `${backendURL}${path}`;
@@ -50,7 +78,6 @@ export type Customer = {
 export type Product = {
   ID: string;
   OrganizationID: string;
-  MeterID: string;
   Code: string;
   Name: string;
   Description: string;
@@ -58,7 +85,7 @@ export type Product = {
   CreatedAt: string;
   UpdatedAt: string;
 };
-export type PriceTier = {
+export type ChargeTier = {
   ID: string;
   StartQuantity: { Micros: number };
   UnitAmount: { Currency: string; Nanos: number };
@@ -68,18 +95,45 @@ export type Price = {
   OrganizationID: string;
   ProductID: string;
   Currency: string;
-  UnitQuantity: { Micros: number };
-  AggregationInterval: "day" | "month";
   BillingInterval: "day" | "week" | "month" | "year";
   IntervalCount: number;
   EffectiveAt: string;
   EffectiveUntil?: string;
   Status: string;
-  Tiers: PriceTier[];
+  Charges: PriceCharge[];
   CreatedAt: string;
   UpdatedAt: string;
 };
-export type SubscriptionItem = { ID: string; PriceID: string };
+export type PriceCharge = {
+  ID: string;
+  MeterID: string;
+  Code: string;
+  Name: string;
+  PricingModel: "per_unit" | "graduated";
+  UnitQuantity: { Micros: number };
+  Tiers: ChargeTier[];
+};
+
+export type Currency = {
+  Code: string;
+  Name: string;
+  Symbol: string;
+  MinorUnit: number;
+};
+
+export type MeasurementUnit = {
+  Code: string;
+  Name: string;
+  Symbol: string;
+  Category: string;
+  Description: string;
+};
+export type SubscriptionItem = {
+  ID: string;
+  PriceID: string;
+  StartAt: string;
+  EndAt?: string;
+};
 export type Subscription = {
   ID: string;
   OrganizationID: string;
@@ -89,6 +143,7 @@ export type Subscription = {
   EndDate?: string;
   Items: SubscriptionItem[];
 };
+
 export type UsageEvent = {
   ID: string;
   EventID: string;
@@ -98,6 +153,7 @@ export type UsageEvent = {
   EventTime: string;
   IngestedAt: string;
 };
+
 export type UsagePoint = {
   bucket: string;
   event_count: number;
@@ -105,18 +161,21 @@ export type UsagePoint = {
   meter_count: number;
   value_micros: number;
 };
+
 export type UsageSummary = {
   from: string;
   to: string;
   interval: "day" | "week" | "month";
   points: UsagePoint[];
 };
+
 export type InvoiceLine = {
   ID: string;
   SubscriptionID: string;
   SubscriptionItemID: string;
   ProductID: string;
   PriceID: string;
+  PriceChargeID: string;
   MeterID: string;
   Description: string;
   UsageQuantity: { Micros: number };
@@ -125,6 +184,7 @@ export type InvoiceLine = {
   UnitAmount: { Currency: string; Nanos: number };
   Amount: { Currency: string; Nanos: number };
 };
+
 export type Invoice = {
   ID: string;
   InvoiceNumber: string;
@@ -136,9 +196,11 @@ export type Invoice = {
   Total: { Currency: string; Nanos: number };
   Lines: InvoiceLine[];
 };
+
 export type InvoiceNumberSettings = {
   number_format: string;
 };
+
 export type ServiceAccount = {
   id: string;
   resource_name: string;
@@ -148,6 +210,7 @@ export type ServiceAccount = {
   subject: string;
   disabled: boolean;
 };
+
 export type APIKey = {
   id: string;
   service_account_id: string;
@@ -158,6 +221,7 @@ export type APIKey = {
   created_at: string;
   key?: string;
 };
+
 export type IAMRole = {
   id: string;
   name: string;
@@ -167,6 +231,7 @@ export type IAMRole = {
   etag: string;
   permissions: string[];
 };
+
 export type IAMBinding = {
   role: string;
   principal: {
@@ -175,12 +240,14 @@ export type IAMBinding = {
     subject: string;
   };
 };
+
 export type IAMPolicy = {
   resource: string;
   version: number;
   etag: string;
   bindings: IAMBinding[];
 };
+
 export type DirectoryUser = {
   id: string;
   username: string;
@@ -189,6 +256,7 @@ export type DirectoryUser = {
   disabled: boolean;
   created_at: string;
 };
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(backendPath(path), {
     credentials: "include",
@@ -204,9 +272,50 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (response.status === 204) return undefined as T;
   return response.json();
 }
+
 export const api = {
-  monitoringResources: (range: MonitoringRange) =>
-    request<ResourceMetrics>(`/admin/v1/monitoring/resources?range=${range}`),
+  monitoredServices: (organization: string) =>
+    request<{ services: MonitoredService[] }>(
+      `/admin/v1/monitoring/services?organization=${encodeURIComponent(organization)}`,
+    ),
+  monitoredService: (organization: string, service: string) =>
+    request<{ service: MonitoredService }>(
+      `/admin/v1/monitoring/services/${encodeURIComponent(service)}?organization=${encodeURIComponent(organization)}`,
+    ),
+  monitoringResources: (
+    organization: string,
+    service: string,
+    range: MonitoringRange,
+  ) =>
+    request<ResourceMetrics>(
+      `/admin/v1/monitoring/services/${encodeURIComponent(service)}/resources?organization=${encodeURIComponent(organization)}&range=${range}`,
+    ),
+  logServices: (organization: string) =>
+    request<{ services: LogService[] }>(
+      `/admin/v1/logs/services?organization=${encodeURIComponent(organization)}`,
+    ),
+  logs: (query: {
+    organization: string;
+    service: string;
+    level?: string;
+    search?: string;
+    from: string;
+    to: string;
+    limit?: number;
+    cursor?: string;
+  }) => {
+    const parameters = new URLSearchParams({
+      organization: query.organization,
+      service: query.service,
+      from: query.from,
+      to: query.to,
+      limit: String(query.limit ?? 100),
+    });
+    if (query.level) parameters.set("level", query.level);
+    if (query.search) parameters.set("search", query.search);
+    if (query.cursor) parameters.set("cursor", query.cursor);
+    return request<LogPage>(`/admin/v1/logs/query?${parameters.toString()}`);
+  },
   providers: () =>
     request<{
       local: { enabled: boolean };
@@ -243,7 +352,9 @@ export const api = {
       }),
     }),
   organizations: (page?: PageParams) =>
-    request<{ organizations: Organization[]; page_info: PageInfo }>(pageURL("/admin/v1/organizations", page)),
+    request<{ organizations: Organization[]; page_info: PageInfo }>(
+      pageURL("/admin/v1/organizations", page),
+    ),
   createOrganization: (body: { name: string; slug: string }) =>
     request<{ organization: Organization }>("/admin/v1/organizations", {
       method: "POST",
@@ -259,7 +370,10 @@ export const api = {
 export function organizationApi(organizationId: string) {
   const base = `/admin/v1/organizations/${organizationId}`;
   return {
-    meters: (page?: PageParams) => request<{ meters: Meter[]; page_info: PageInfo }>(pageURL(`${base}/meters`, page)),
+    meters: (page?: PageParams) =>
+      request<{ meters: Meter[]; page_info: PageInfo }>(
+        pageURL(`${base}/meters`, page),
+      ),
     meter: (id: string) => request<{ meter: Meter }>(`${base}/meters/${id}`),
     createMeter: (
       body: Pick<Meter, "Code" | "Name" | "Aggregation" | "Unit">,
@@ -286,7 +400,10 @@ export function organizationApi(organizationId: string) {
           unit: body.Unit,
         }),
       }),
-    customers: (page?: PageParams) => request<{ customers: Customer[]; page_info: PageInfo }>(pageURL(`${base}/customers`, page)),
+    customers: (page?: PageParams) =>
+      request<{ customers: Customer[]; page_info: PageInfo }>(
+        pageURL(`${base}/customers`, page),
+      ),
     customer: (id: string) =>
       request<{ customer: Customer }>(`${base}/customers/${id}`),
     createCustomer: (body: { first_name: string; last_name: string }) =>
@@ -302,7 +419,10 @@ export function organizationApi(organizationId: string) {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
-    products: (page?: PageParams) => request<{ products: Product[]; page_info: PageInfo }>(pageURL(`${base}/products`, page)),
+    products: (page?: PageParams) =>
+      request<{ products: Product[]; page_info: PageInfo }>(
+        pageURL(`${base}/products`, page),
+      ),
     product: (id: string) =>
       request<{ product: Product }>(`${base}/products/${id}`),
     createProduct: (body: Record<string, unknown>) =>
@@ -315,7 +435,16 @@ export function organizationApi(organizationId: string) {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
-    prices: (page?: PageParams) => request<{ prices: Price[]; page_info: PageInfo }>(pageURL(`${base}/prices`, page)),
+    prices: (page?: PageParams) =>
+      request<{ prices: Price[]; page_info: PageInfo }>(
+        pageURL(`${base}/prices`, page),
+      ),
+    currencies: () =>
+      request<{ currencies: Currency[] }>(`${base}/reference/currencies`),
+    measurementUnits: () =>
+      request<{ measurement_units: MeasurementUnit[] }>(
+        `${base}/reference/measurement-units`,
+      ),
     price: (id: string) => request<{ price: Price }>(`${base}/prices/${id}`),
     createPrice: (body: Record<string, unknown>) =>
       request<{ price: Price }>(`${base}/prices`, {
@@ -328,7 +457,9 @@ export function organizationApi(organizationId: string) {
         body: JSON.stringify(body),
       }),
     subscriptions: (page?: PageParams) =>
-      request<{ subscriptions: Subscription[]; page_info: PageInfo }>(pageURL(`${base}/subscriptions`, page)),
+      request<{ subscriptions: Subscription[]; page_info: PageInfo }>(
+        pageURL(`${base}/subscriptions`, page),
+      ),
     subscription: (id: string) =>
       request<{ subscription: Subscription }>(`${base}/subscriptions/${id}`),
     createSubscription: (body: Record<string, unknown>) =>
@@ -342,7 +473,9 @@ export function organizationApi(organizationId: string) {
         body: JSON.stringify(body),
       }),
     usageEvents: (page?: PageParams) =>
-      request<{ events: UsageEvent[]; page_info: PageInfo }>(pageURL(`${base}/usage-events`, page)),
+      request<{ events: UsageEvent[]; page_info: PageInfo }>(
+        pageURL(`${base}/usage-events`, page),
+      ),
     usageSummary: (range: "7d" | "30d" | "3m" | "12m" = "12m") =>
       request<UsageSummary>(`${base}/usage-events/summary?range=${range}`),
     usageEvent: (id: string) =>
@@ -353,19 +486,30 @@ export function organizationApi(organizationId: string) {
         headers: { "Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify(body),
       }),
-    invoices: (page?: PageParams) => request<{ invoices: Invoice[]; page_info: PageInfo }>(pageURL(`${base}/invoices`, page)),
+    invoices: (page?: PageParams) =>
+      request<{ invoices: Invoice[]; page_info: PageInfo }>(
+        pageURL(`${base}/invoices`, page),
+      ),
     invoiceNumberSettings: () =>
-      request<{ settings: InvoiceNumberSettings }>(`${base}/invoice-number-settings`),
+      request<{ settings: InvoiceNumberSettings }>(
+        `${base}/invoice-number-settings`,
+      ),
     updateInvoiceNumberSettings: (numberFormat: string) =>
-      request<{ settings: InvoiceNumberSettings }>(`${base}/invoice-number-settings`, {
-        method: "PATCH",
-        body: JSON.stringify({ number_format: numberFormat }),
-      }),
+      request<{ settings: InvoiceNumberSettings }>(
+        `${base}/invoice-number-settings`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ number_format: numberFormat }),
+        },
+      ),
     generateInvoices: (body: { period_start: string; period_end: string }) =>
-      request<{ invoices: Invoice[]; created: number; existing: number }>(`${base}/invoice-runs`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
+      request<{ invoices: Invoice[]; created: number; existing: number }>(
+        `${base}/invoice-runs`,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      ),
     invoice: (id: string) =>
       request<{ invoice: Invoice }>(`${base}/invoices/${id}`),
     createInvoice: (body: Record<string, unknown>) =>
@@ -384,6 +528,14 @@ export function organizationApi(organizationId: string) {
 export function iamApi(organization: Organization) {
   const query = encodeURIComponent(organization.slug);
   return {
+    testPermissions: (permissions: string[]) =>
+      request<{ permissions: string[] }>("/admin/v1/iam:testPermissions", {
+        method: "POST",
+        body: JSON.stringify({
+          resource: `organizations/${organization.slug}`,
+          permissions,
+        }),
+      }),
     users: (page?: PageParams) =>
       request<{ users: DirectoryUser[]; page_info: PageInfo }>(
         pageURL(`/admin/v1/iam/users?organization=${query}`, page),
@@ -422,7 +574,10 @@ export function iamApi(organization: Organization) {
       ),
     apiKeys: (serviceAccountId: string, page?: PageParams) =>
       request<{ api_keys: APIKey[]; page_info: PageInfo }>(
-        pageURL(`/admin/v1/iam/serviceAccounts/${serviceAccountId}/apiKeys?organization=${query}`, page),
+        pageURL(
+          `/admin/v1/iam/serviceAccounts/${serviceAccountId}/apiKeys?organization=${query}`,
+          page,
+        ),
       ),
     createAPIKey: (
       serviceAccountId: string,

@@ -14,10 +14,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { DataTable } from "@/components/data-table";
+import { useCursorPagination } from "@/hooks/use-cursor-pagination";
 
 export function APIKeysPage() {
   const { organization } = useOutletContext<{ organization: Organization }>();
   const client = iamApi(organization);
+  const listPath = `/organizations/${organization.id}/developer/api-keys`;
   const create = location.pathname.endsWith("/new");
   const [accounts, setAccounts] = useState<ServiceAccount[]>([]);
   const [keys, setKeys] = useState<APIKey[]>([]);
@@ -26,20 +28,24 @@ export function APIKeysPage() {
   const [expiresAt, setExpiresAt] = useState("");
   const [secret, setSecret] = useState("");
   const [error, setError] = useState("");
+  const pagination = useCursorPagination();
   useEffect(() => {
     void client
-      .serviceAccounts()
+      .serviceAccounts({ limit: 100 })
       .then((result) => setAccounts(result.service_accounts))
       .catch((cause) => setError(cause.message));
   }, [organization.id]);
   useEffect(() => {
     if (accountID)
       void client
-        .apiKeys(accountID)
-        .then((result) => setKeys(result.api_keys))
+        .apiKeys(accountID, pagination.request)
+        .then((result) => {
+          setKeys(result.api_keys);
+          pagination.setPageInfo(result.page_info);
+        })
         .catch((cause) => setError(cause.message));
     else setKeys([]);
-  }, [accountID]);
+  }, [accountID, pagination.cursor]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     try {
@@ -63,10 +69,19 @@ export function APIKeysPage() {
       label: account.display_name,
       description: account.description,
     }));
+  const selectAccount = (value: string) => {
+    pagination.reset();
+    setAccountID(value);
+  };
   if (create)
     return (
       <main className="content editor-page">
-        <Button variant="ghost" size="sm" asChild><Link to=".."><ArrowLeft />API keys</Link></Button>
+        <Button variant="ghost" size="sm" asChild>
+          <Link to={listPath}>
+            <ArrowLeft />
+            API keys
+          </Link>
+        </Button>
         <div className="page-head">
           <div>
             <p className="eyebrow">DEVELOPER / API KEYS</p>
@@ -90,7 +105,7 @@ export function APIKeysPage() {
                   Copy secret
                 </Button>
                 <Button asChild>
-                  <Link to="..">Done</Link>
+                  <Link to={listPath}>Done</Link>
                 </Button>
               </div>
             </CardContent>
@@ -100,41 +115,48 @@ export function APIKeysPage() {
             <CardContent className="pt-6">
               <form onSubmit={submit}>
                 <FieldGroup>
-                <Field>
-                  <FieldLabel>Service account</FieldLabel>
-                  <RelationCombobox
-                    value={accountID}
-                    onValueChange={setAccountID}
-                    options={options}
-                    placeholder="Select service account"
-                    searchPlaceholder="Search service accounts…"
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>Key name</FieldLabel>
-                  <Input
-                    type="text"
-                    inputMode="text"
-                    required
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>Expires on (optional)</FieldLabel>
-                  <DatePicker
-                    value={expiresAt}
-                    onValueChange={setExpiresAt}
-                    placeholder="No expiration date"
-                  />
-                </Field>
-                {error && <p className="form-error">{error}</p>}
-                <div className="form-actions">
-                  <Button variant="outline" asChild>
-                    <Link to="..">Cancel</Link>
-                  </Button>
-                  <Button disabled={!accountID}>Create API key</Button>
-                </div>
+                  <Field>
+                    <FieldLabel hint="Service account that will own and authenticate with this key.">
+                      Service account
+                    </FieldLabel>
+                    <RelationCombobox
+                      value={accountID}
+                      onValueChange={selectAccount}
+                      options={options}
+                      placeholder="Select service account"
+                      searchPlaceholder="Search service accounts…"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel hint="Descriptive name used to identify this key later; the secret is shown only once.">
+                      Key name
+                    </FieldLabel>
+                    <Input
+                      type="text"
+                      inputMode="text"
+                      required
+                      placeholder="Production usage ingest"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel hint="After this date the API key is rejected automatically. Leave empty for no expiry.">
+                      Expires on (optional)
+                    </FieldLabel>
+                    <DatePicker
+                      value={expiresAt}
+                      onValueChange={setExpiresAt}
+                      placeholder="No expiration date"
+                    />
+                  </Field>
+                  {error && <p className="form-error">{error}</p>}
+                  <div className="form-actions">
+                    <Button variant="outline" asChild>
+                      <Link to={listPath}>Cancel</Link>
+                    </Button>
+                    <Button disabled={!accountID}>Create API key</Button>
+                  </div>
                 </FieldGroup>
               </form>
             </CardContent>
@@ -162,7 +184,7 @@ export function APIKeysPage() {
       <div className="list-toolbar">
         <RelationCombobox
           value={accountID}
-          onValueChange={setAccountID}
+          onValueChange={selectAccount}
           options={options}
           placeholder="Select service account"
           searchPlaceholder="Search service accounts…"
@@ -180,6 +202,12 @@ export function APIKeysPage() {
           ) : (
             <DataTable
               data={keys}
+              cursorPagination={{
+                cursor: pagination.cursor,
+                pageInfo: pagination.pageInfo,
+                onCursorChange: pagination.setCursor,
+                resetKey: accountID,
+              }}
               searchKey="display_name"
               searchPlaceholder="Search API keys…"
               columns={[
@@ -222,7 +250,12 @@ export function APIKeysPage() {
                         size="sm"
                         onClick={async () => {
                           await client.revokeAPIKey(row.original.id);
-                          setKeys((await client.apiKeys(accountID)).api_keys);
+                          const result = await client.apiKeys(
+                            accountID,
+                            pagination.request,
+                          );
+                          setKeys(result.api_keys);
+                          pagination.setPageInfo(result.page_info);
                         }}
                       >
                         Revoke

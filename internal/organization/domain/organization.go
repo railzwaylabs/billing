@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/internal/shared/apperror"
 	"github.com/railzwaylabs/billing/pkg/types"
 )

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/fx"
+
 	catalogue "github.com/railzwaylabs/billing/internal/catalogue/domain"
 	invoice "github.com/railzwaylabs/billing/internal/invoice/domain"
 	meter "github.com/railzwaylabs/billing/internal/meter/domain"
@@ -18,6 +20,7 @@ import (
 	"github.com/railzwaylabs/billing/pkg/types"
 )
 
+// Service turns effective usage and pricing snapshots into draft invoices.
 type Service struct {
 	subscriptions subscription.Repository
 	prices        catalogue.PriceRepository
@@ -28,16 +31,33 @@ type Service struct {
 	clock         clock.Clock
 }
 
+// Params declares the repositories and clock required by the rating workflow.
+type Params struct {
+	fx.In
+	Subscriptions subscription.Repository
+	Prices        catalogue.PriceRepository
+	Products      catalogue.ProductRepository
+	Meters        meter.Repository
+	Usage         usage.Repository
+	Invoices      invoice.Repository
+	Clock         clock.Clock
+}
+
+// Result summarizes an idempotent rating run.
 type Result struct {
 	Invoices []invoice.Invoice `json:"invoices"`
 	Created  int               `json:"created"`
 	Existing int               `json:"existing"`
 }
 
-func New(subscriptions subscription.Repository, prices catalogue.PriceRepository, products catalogue.ProductRepository, meters meter.Repository, usage usage.Repository, invoices invoice.Repository, clock clock.Clock) *Service {
-	return &Service{subscriptions: subscriptions, prices: prices, products: products, meters: meters, usage: usage, invoices: invoices, clock: clock}
+// New constructs the rating application service.
+func New(p Params) *Service {
+	return &Service{subscriptions: p.Subscriptions, prices: p.Prices, products: p.Products, meters: p.Meters, usage: p.Usage, invoices: p.Invoices, clock: p.Clock}
 }
 
+// Generate rates all effective subscriptions for the half-open period [start, end).
+// Existing invoices for the same customer and period are returned instead of
+// being recreated, which makes scheduler retries safe after partial failures.
 func (s *Service) Generate(ctx context.Context, organizationID uuid.UUID, start, end time.Time) (Result, error) {
 	start, end = start.UTC(), end.UTC()
 	if organizationID == uuid.Nil || start.IsZero() || !start.Before(end) {
@@ -58,12 +78,19 @@ func (s *Service) Generate(ctx context.Context, organizationID uuid.UUID, start,
 			continue
 		}
 		for _, item := range subscription.Items {
-			line, ok, err := s.rateItem(ctx, organizationID, subscription, item, lineStart, lineEnd)
+			// Only usage inside the intersection of billing, subscription, item,
+			// and price periods may contribute to an invoice.
+			itemStart := later(lineStart, item.StartAt.UTC())
+			itemEnd := lineEnd
+			if item.EndAt != nil {
+				itemEnd = earlier(itemEnd, item.EndAt.UTC())
+			}
+			lines, err := s.rateItem(ctx, organizationID, subscription, item, itemStart, itemEnd)
 			if err != nil {
 				return Result{}, err
 			}
-			if ok {
-				linesByCustomer[subscription.CustomerID] = append(linesByCustomer[subscription.CustomerID], line)
+			if len(lines) > 0 {
+				linesByCustomer[subscription.CustomerID] = append(linesByCustomer[subscription.CustomerID], lines...)
 			}
 		}
 	}
@@ -97,56 +124,54 @@ func (s *Service) Generate(ctx context.Context, organizationID uuid.UUID, start,
 	return result, nil
 }
 
-func (s *Service) rateItem(ctx context.Context, organizationID uuid.UUID, subscription subscription.Subscription, item subscription.Item, start, end time.Time) (invoice.Line, bool, error) {
+func (s *Service) rateItem(ctx context.Context, organizationID uuid.UUID, subscription subscription.Subscription, item subscription.Item, start, end time.Time) ([]invoice.Line, error) {
 	price, err := s.prices.GetByID(ctx, organizationID, item.PriceID)
 	if err != nil {
-		return invoice.Line{}, false, err
+		return nil, err
 	}
 	start = later(start, price.EffectiveAt.UTC())
 	if price.EffectiveUntil != nil {
 		end = earlier(end, price.EffectiveUntil.UTC())
 	}
 	if !start.Before(end) {
-		return invoice.Line{}, false, nil
+		return nil, nil
 	}
 	product, err := s.products.GetByID(ctx, organizationID, price.ProductID)
 	if err != nil {
-		return invoice.Line{}, false, err
+		return nil, err
 	}
-	meterValue, err := s.meters.GetByID(ctx, organizationID, product.MeterID)
-	if err != nil {
-		return invoice.Line{}, false, err
+	lines := make([]invoice.Line, 0, len(price.Charges))
+	for _, charge := range price.Charges {
+		meterValue, err := s.meters.GetByID(ctx, organizationID, charge.MeterID)
+		if err != nil {
+			return nil, err
+		}
+		events, err := s.usage.ListForPeriod(ctx, organizationID, meterValue.ID, subscription.CustomerID, usage.Period{Start: start, End: end})
+		if err != nil {
+			return nil, err
+		}
+		quantity, err := rating.Aggregate(meterValue.Aggregation, events)
+		if err != nil {
+			return nil, err
+		}
+		if quantity.Micros == 0 {
+			continue
+		}
+		amount, breakdown, err := rating.Calculate(quantity, price.Currency, charge)
+		if err != nil {
+			return nil, err
+		}
+		details, err := json.Marshal(map[string]any{"model": charge.PricingModel, "charge_code": charge.Code, "tiers": breakdown, "rated_from": start, "rated_to": end})
+		if err != nil {
+			return nil, err
+		}
+		unitAmount := charge.Tiers[0].UnitAmount
+		if len(breakdown) > 0 {
+			unitAmount = breakdown[0].UnitAmount
+		}
+		lines = append(lines, invoice.Line{SubscriptionID: subscription.ID, SubscriptionItemID: item.ID, ProductID: product.ID, PriceID: price.ID, PriceChargeID: charge.ID, MeterID: meterValue.ID, Description: product.Name + " — " + charge.Name, UsageQuantity: quantity, Unit: meterValue.Unit, PricingUnitQuantity: charge.UnitQuantity, UnitAmount: unitAmount, Amount: amount, PricingDetails: types.JSONB(details)})
 	}
-	events, err := s.usage.ListForPeriod(ctx, organizationID, meterValue.ID, subscription.CustomerID, usage.Period{Start: start, End: end})
-	if err != nil {
-		return invoice.Line{}, false, err
-	}
-	quantity, err := rating.Aggregate(meterValue.Aggregation, events)
-	if err != nil {
-		return invoice.Line{}, false, err
-	}
-	if quantity.Micros == 0 {
-		return invoice.Line{}, false, nil
-	}
-	amount, breakdown, err := rating.Calculate(quantity, price)
-	if err != nil {
-		return invoice.Line{}, false, err
-	}
-	details, err := json.Marshal(map[string]any{"model": "graduated", "tiers": breakdown, "rated_from": start, "rated_to": end})
-	if err != nil {
-		return invoice.Line{}, false, err
-	}
-	unitAmount := price.Tiers[0].UnitAmount
-	if len(breakdown) > 0 {
-		unitAmount = breakdown[0].UnitAmount
-	}
-	return invoice.Line{
-		SubscriptionID: subscription.ID, SubscriptionItemID: item.ID,
-		ProductID: product.ID, PriceID: price.ID, MeterID: meterValue.ID,
-		Description: product.Name, UsageQuantity: quantity, Unit: meterValue.Unit,
-		PricingUnitQuantity: price.UnitQuantity, UnitAmount: unitAmount, Amount: amount,
-		PricingDetails: types.JSONB(details),
-	}, true, nil
+	return lines, nil
 }
 
 func inclusiveDateEnd(value time.Time) time.Time {
