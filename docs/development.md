@@ -38,6 +38,32 @@ pnpm dev
 
 Vite proxies `/admin/v1` to the backend configured in `apps/console/vite.config.ts`. Keep list, create, and detail/edit routes separate. Use checked-in shadcn components from `src/components/ui` rather than local primitive replacements.
 
+### Resource monitor
+
+The **Developer → Monitor** page requires Prometheus and cAdvisor. Start the
+infrastructure before running the console:
+
+```bash
+docker compose -f infrastructure/docker-compose.yml up -d
+pnpm dev
+```
+
+Vite proxies `/prometheus` to `http://localhost:9090`. In the containerized
+console, Nginx proxies only the Prometheus instant and range query endpoints to
+the `prometheus` service on `billing-net`.
+
+The period selector controls both the queried history and chart resolution:
+
+| Selection | History | Query step |
+| --- | --- | --- |
+| Daily | Last 24 hours | 1 hour |
+| Weekly | Last 7 days | 6 hours |
+| Monthly | Last 30 days | 1 day |
+
+If the page shows `Unavailable`, verify that both services are healthy and
+that cAdvisor exposes metrics with
+`container_label_com_docker_compose_project="billing"`.
+
 ## End-to-end tests
 
 Install browsers once, then run tests:

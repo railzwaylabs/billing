@@ -106,3 +106,27 @@ Use at least 32 random characters for `API_KEY_SECRET` and a different value per
 ## Metrics labels
 
 `BILLING_ORGANIZATION_ID` and `BILLING_PROJECT_ID` are deployment metadata attached as Prometheus labels. They do not select a billing tenant and do not affect authorization.
+
+## Console resource monitoring
+
+The local monitoring stack is configured in
+`infrastructure/docker-compose.yml` and
+`infrastructure/prometheus/prometheus.yml`:
+
+| Setting | Local value | Purpose |
+| --- | --- | --- |
+| Prometheus scrape interval | `5s` | Collect cAdvisor and billing-process metrics |
+| Prometheus retention | `31d` | Support the Monthly console range |
+| Prometheus address | `localhost:9090` | Local Prometheus UI and query API |
+| cAdvisor address | `localhost:8082` | Local container metrics endpoint |
+
+The production console proxy exposes the Prometheus query paths under
+`/prometheus/api/v1/query` and `/prometheus/api/v1/query_range`. Do not expose
+the Prometheus service itself through public ingress. In a production
+deployment, place the query path behind the same authentication and network
+controls as the administration console, and apply query limits appropriate to
+the monitoring platform.
+
+Monthly charts require at least 30 days of retained samples. If retention is
+reduced, the console remains usable but can only display the history still
+available in Prometheus.

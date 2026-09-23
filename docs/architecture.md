@@ -80,3 +80,35 @@ Policy mutations increment `iam_policy_versions` and publish `billing_iam_policy
 ## Time
 
 Business code receives `pkg/clock.Clock`. Production uses `clock.System`; tests can use `clock.Fixed`. HTTP and Prometheus duration measurements intentionally use the system monotonic clock.
+
+## Resource monitoring
+
+The console resource monitor is an operational view and is separate from the
+billing domain and its HTTP API:
+
+```text
+Docker containers
+      |
+   cAdvisor
+      |
+  Prometheus
+      |
+Nginx / Vite proxy
+      |
+Developer -> Monitor
+```
+
+cAdvisor exports container CPU, memory, filesystem, and network metrics.
+Prometheus scrapes those metrics every five seconds. The console queries the
+Prometheus range API and renders separate shadcn bar charts for:
+
+- CPU cores used and allocated.
+- Memory used and allocated, in GiB.
+- Disk usage and capacity, in GiB.
+- Network receive and transmit throughput, in MiB/s.
+
+The monitor selects containers whose Docker Compose project label is
+`billing`. Network is presented as throughput because Docker Compose does not
+configure a bandwidth allocation limit. The Prometheus endpoint is an
+observability dependency, not part of the supported public or admin billing
+API contract.
