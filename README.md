@@ -106,7 +106,9 @@ billing stack applies migrations and then starts:
 
 After signing in, open **Developer → Monitor** to view resource history.
 Daily shows the last 24 hours, Weekly shows the last 7 days, and Monthly shows
-the last 30 days. Prometheus retains 31 days of local metrics.
+the last 30 days. Prometheus retains 31 days of local metrics. The console uses
+the authenticated admin monitoring endpoint; Prometheus is not exposed to the
+browser.
 
 Follow logs or stop the stack with:
 
@@ -184,6 +186,7 @@ pnpm test:e2e:report
 - [Configuration](docs/configuration.md)
 - [Billing and rating](docs/billing-and-rating.md)
 - [HTTP API](docs/http-api.md)
+- [IAM policies](docs/iam.md)
 - [Development guide](docs/development.md)
 
 ## Current limitations

@@ -77,6 +77,9 @@ Principal -> organization -> canonical resource -> permission
 
 Policy mutations increment `iam_policy_versions` and publish `billing_iam_policy_changed`. Instances use `LISTEN/NOTIFY` for prompt reload and poll versions as recovery. A complete evaluator is swapped atomically; failed reloads preserve the previous snapshot.
 
+See [IAM policies](iam.md) for the resource hierarchy, predefined roles,
+permission catalogue, policy API, and operational behavior.
+
 ## Time
 
 Business code receives `pkg/clock.Clock`. Production uses `clock.System`; tests can use `clock.Fixed`. HTTP and Prometheus duration measurements intentionally use the system monotonic clock.
@@ -93,14 +96,15 @@ Docker containers
       |
   Prometheus
       |
-Nginx / Vite proxy
+admin-api monitoring service
       |
 Developer -> Monitor
 ```
 
 cAdvisor exports container CPU, memory, filesystem, and network metrics.
-Prometheus scrapes those metrics every five seconds. The console queries the
-Prometheus range API and renders separate shadcn bar charts for:
+Prometheus scrapes those metrics every five seconds. The session-authenticated
+admin API executes a fixed set of range queries and returns normalized series
+to the console, which renders separate shadcn bar charts for:
 
 - CPU cores used and allocated.
 - Memory used and allocated, in GiB.
@@ -109,6 +113,5 @@ Prometheus range API and renders separate shadcn bar charts for:
 
 The monitor selects containers whose Docker Compose project label is
 `billing`. Network is presented as throughput because Docker Compose does not
-configure a bandwidth allocation limit. The Prometheus endpoint is an
-observability dependency, not part of the supported public or admin billing
-API contract.
+configure a bandwidth allocation limit. Prometheus remains private; clients
+cannot submit arbitrary PromQL through the admin endpoint.

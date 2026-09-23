@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,8 +14,9 @@ import (
 )
 
 type Config struct {
-	Address string
-	Name    string
+	Address            string
+	Name               string
+	CORSAllowedOrigins string
 }
 
 type Server struct {
@@ -28,10 +30,39 @@ var Module = fx.Module(
 	fx.Invoke(RegisterLifecycle),
 )
 
-func NewEngine(logger *zap.Logger, telemetry *metrics.Metrics) *gin.Engine {
+func NewEngine(config Config, logger *zap.Logger, telemetry *metrics.Metrics) *gin.Engine {
 	engine := gin.New()
-	engine.Use(gin.Recovery(), requestLogger(logger), telemetry.Middleware())
+	engine.Use(gin.Recovery(), corsMiddleware(config.CORSAllowedOrigins), requestLogger(logger), telemetry.Middleware())
 	return engine
+}
+
+func corsMiddleware(configured string) gin.HandlerFunc {
+	allowed := make(map[string]struct{})
+	for _, origin := range strings.Split(configured, ",") {
+		if value := strings.TrimSpace(origin); value != "" {
+			allowed[value] = struct{}{}
+		}
+	}
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		_, accepted := allowed[origin]
+		if origin != "" && accepted {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Credentials", "true")
+			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, Idempotency-Key")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			c.Header("Vary", "Origin")
+		}
+		if c.Request.Method == http.MethodOptions {
+			if origin == "" || !accepted {
+				c.AbortWithStatus(http.StatusForbidden)
+				return
+			}
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
 }
 
 func NewServer(config Config, engine *gin.Engine, logger *zap.Logger) *Server {

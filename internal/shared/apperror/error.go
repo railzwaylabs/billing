@@ -8,6 +8,7 @@ const (
 	KindNotFound        Kind = "not_found"
 	KindInvalid         Kind = "invalid"
 	KindConflict        Kind = "conflict"
+	KindUnavailable     Kind = "unavailable"
 )
 
 // Detail provides structured context about an error without coupling it to a

@@ -51,9 +51,12 @@ They may remain in deployment configuration, subject to the organization's infra
 | Variable | Default | Description |
 | --- | --- | --- |
 | `HTTP_ADDRESS` | `0.0.0.0:8080` | Business HTTP listener for `admin-api` or `api` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated browser origins allowed with credentials |
 | `METRICS_ADDRESS` | `0.0.0.0:9090` | Private observability listener for metrics and probes |
 | `MANAGEMENT_ADDRESS` | `127.0.0.1:7070` | Private management listener for pprof and admin runtime controls |
 | `RATING_INTERVAL` | `1m` | Scheduler check interval |
+| `PROMETHEUS_URL` | `http://localhost:9090` | Private Prometheus origin used by admin-api monitoring |
+| `PROMETHEUS_TIMEOUT` | `10s` | Timeout for each Prometheus range query |
 
 The rating command ignores the business HTTP address. In production, route port `8080` through ingress, restrict port `9090` to the monitoring plane, and keep the management listener private. Pprof may expose memory contents and runtime details, so never publish `MANAGEMENT_ADDRESS` through public ingress.
 
@@ -120,13 +123,17 @@ The local monitoring stack is configured in
 | Prometheus address | `localhost:9090` | Local Prometheus UI and query API |
 | cAdvisor address | `localhost:8082` | Local container metrics endpoint |
 
-The production console proxy exposes the Prometheus query paths under
-`/prometheus/api/v1/query` and `/prometheus/api/v1/query_range`. Do not expose
-the Prometheus service itself through public ingress. In a production
-deployment, place the query path behind the same authentication and network
-controls as the administration console, and apply query limits appropriate to
-the monitoring platform.
+The browser calls the session-authenticated
+`/admin/v1/monitoring/resources` endpoint. The admin API owns the PromQL and
+connects to `PROMETHEUS_URL`; it does not accept arbitrary PromQL from clients.
+Keep Prometheus on the private network and do not publish it through ingress.
 
 Monthly charts require at least 30 days of retained samples. If retention is
 reduced, the console remains usable but can only display the history still
 available in Prometheus.
+
+For a separately hosted console, `VITE_BACKEND_URL` is embedded into the
+frontend at build time. Set it to an HTTPS origin such as
+`https://admin-api.example.com`, without a trailing slash. When it is empty,
+the console uses same-origin `/admin/v1` requests, suitable for an ingress or
+Vercel rewrite. `BACKEND_URL` configures only the local Vite development proxy.

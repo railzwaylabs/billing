@@ -36,7 +36,10 @@ pnpm install
 pnpm dev
 ```
 
-Vite proxies `/admin/v1` to the backend configured in `apps/console/vite.config.ts`. Keep list, create, and detail/edit routes separate. Use checked-in shadcn components from `src/components/ui` rather than local primitive replacements.
+Vite proxies `/admin/v1` to `BACKEND_URL`, defaulting to
+`http://localhost:8080`. Keep list, create, and detail/edit routes separate.
+Use checked-in shadcn components from `src/components/ui` rather than local
+primitive replacements.
 
 ### Resource monitor
 
@@ -48,9 +51,11 @@ docker compose -f infrastructure/docker-compose.yml up -d
 pnpm dev
 ```
 
-Vite proxies `/prometheus` to `http://localhost:9090`. In the containerized
-console, Nginx proxies only the Prometheus instant and range query endpoints to
-the `prometheus` service on `billing-net`.
+The console calls
+`GET /admin/v1/monitoring/resources?range=day|week|month`. The admin API
+validates the session, selects predefined PromQL, queries `PROMETHEUS_URL`, and
+returns normalized resource series. Prometheus is never called directly by
+browser code.
 
 The period selector controls both the queried history and chart resolution:
 
@@ -64,6 +69,11 @@ If the page shows `Unavailable`, verify that both services are healthy and
 that cAdvisor exposes metrics with
 `container_label_com_docker_compose_project="billing"`.
 
+For a Vercel deployment, set the project root to `apps/console`. Either keep
+`VITE_BACKEND_URL` empty and rewrite `/admin/v1/*` to admin-api, or set it to
+the public HTTPS origin of admin-api. Direct cross-origin requests require the
+backend to allow the exact console origin and credentials; do not use `*`.
+
 ## End-to-end tests
 
 Install browsers once, then run tests:
@@ -75,6 +85,19 @@ pnpm test:e2e:report
 ```
 
 Generated reports are ignored by Git.
+
+## Testing authorization changes
+
+IAM behavior should be tested at both the domain boundary and the compiled
+Casbin evaluator. Include cases for default-deny, parent-resource inheritance,
+organization isolation, issuer isolation, stale ETags, duplicate bindings, and
+last-owner protection. Repository tests should also verify policy-version
+increments and reload behavior.
+
+Do not bypass authorization in handlers to simplify a test. Construct a
+principal with an explicit policy binding or assert the expected
+`PERMISSION_DENIED` response. See [IAM policies](iam.md) for the model and error
+codes.
 
 ## Adding a feature
 

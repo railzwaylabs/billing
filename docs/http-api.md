@@ -87,9 +87,24 @@ Usage endpoints:
 
 Invoice generation is performed by the rating worker rather than an HTTP endpoint.
 
+## Monitoring
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/admin/v1/monitoring/resources?range=day\|week\|month` | Session-authenticated CPU, memory, disk, and network history |
+
+The monitoring endpoint accepts only the documented range selector. PromQL,
+start/end timestamps, step size, and container selectors are controlled by the
+admin API. Prometheus remains a private infrastructure dependency. An invalid
+range returns `MONITORING_RANGE_INVALID`; an upstream failure or timeout
+returns `MONITORING_UNAVAILABLE`.
+
 ## IAM
 
 IAM routes below `/admin/v1/iam` provide policies, permission tests, custom roles, service accounts, and API-key lifecycle operations. Authorization is default-deny and uses canonical organization resource names.
+
+See [IAM policies](iam.md) for the complete authorization model, role and
+permission catalogue, ETag behavior, and request examples.
 
 The console Members page resolves normalized local/social identities through `GET /admin/v1/iam/users?organization={slug}` and mutates organization membership through the existing ETag-protected IAM policy endpoint.
 

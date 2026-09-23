@@ -11,21 +11,6 @@ const json = (route: Route, body: unknown, status = 200) => route.fulfill({ stat
 export async function mockAPI(page: Page, options: MockOptions = {}) {
   const authenticated = options.authenticated ?? true;
   const organizations = options.organizations ?? [organization];
-  await page.route("**/prometheus/api/v1/query**", (route) => {
-    const timestamp = Math.floor(Date.now() / 1000);
-    return json(route, {
-      status: "success",
-      data: {
-        resultType: "matrix",
-        result: [{
-          values: Array.from({ length: 24 }, (_, index) => [
-            timestamp - (23 - index) * 3600,
-            String(1 + index / 10),
-          ]),
-        }],
-      },
-    });
-  });
   await page.route("**/admin/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -41,6 +26,17 @@ export async function mockAPI(page: Page, options: MockOptions = {}) {
     if (path === "/admin/v1/auth/logout" || path.includes("/password/")) return route.fulfill({ status: 204 });
     if (path === "/admin/v1/organizations" && method === "GET") return json(route, { organizations });
     if (path === "/admin/v1/organizations" && method === "POST") return json(route, { organization });
+    if (path === "/admin/v1/monitoring/resources" && method === "GET") {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const samples = Array.from({ length: 24 }, (_, index) => ({ timestamp: timestamp - (23 - index) * 3600, value: 1 + index / 10 }));
+      return json(route, {
+        range: url.searchParams.get("range") ?? "day", step_seconds: 3600,
+        cpu: { used: samples, allocated: samples },
+        memory: { used: samples, allocated: samples },
+        disk: { used: samples, allocated: samples },
+        network: { receive: samples, transmit: samples },
+      });
+    }
     if (path.endsWith("/usage-events/summary") && method === "GET") return json(route, {
       from: "2025-10-01T00:00:00Z", to: "2026-10-01T00:00:00Z", interval: "month",
       points: Array.from({ length: 12 }, (_, index) => ({ bucket: new Date(Date.UTC(2025, 9 + index, 1)).toISOString().slice(0, 10), event_count: 0, customer_count: 0, meter_count: 0, value_micros: 0 })),

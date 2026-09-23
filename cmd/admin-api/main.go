@@ -8,6 +8,7 @@ import (
 	"github.com/railzwaylabs/billing/internal/iam"
 	"github.com/railzwaylabs/billing/internal/invoice"
 	"github.com/railzwaylabs/billing/internal/meter"
+	"github.com/railzwaylabs/billing/internal/monitoring"
 	"github.com/railzwaylabs/billing/internal/organization"
 	"github.com/railzwaylabs/billing/internal/platform/database"
 	"github.com/railzwaylabs/billing/internal/platform/httpserver"
@@ -39,5 +40,6 @@ func main() {
 		subscription.Module,
 		usage.Module,
 		invoice.Module,
+		monitoring.Module,
 	).Run()
 }

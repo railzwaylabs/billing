@@ -68,6 +68,8 @@ func statusFromKind(kind apperror.Kind) int {
 		return http.StatusUnprocessableEntity
 	case apperror.KindConflict:
 		return http.StatusConflict
+	case apperror.KindUnavailable:
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

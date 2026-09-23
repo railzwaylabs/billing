@@ -3,6 +3,18 @@ export type ApiError = {
 };
 export type PageParams = { limit?: number; cursor?: string };
 export type PageInfo = { next_cursor?: string; has_more: boolean };
+export type MonitoringRange = "day" | "week" | "month";
+export type MonitoringSample = { timestamp: number; value: number };
+export type ResourceMetrics = {
+  range: MonitoringRange;
+  step_seconds: number;
+  cpu: { used: MonitoringSample[]; allocated: MonitoringSample[] };
+  memory: { used: MonitoringSample[]; allocated: MonitoringSample[] };
+  disk: { used: MonitoringSample[]; allocated: MonitoringSample[] };
+  network: { receive: MonitoringSample[]; transmit: MonitoringSample[] };
+};
+const backendURL = (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
+export const backendPath = (path: string) => `${backendURL}${path}`;
 const pageURL = (path: string, page?: PageParams) => {
   const query = new URLSearchParams();
   if (page?.limit) query.set("limit", String(page.limit));
@@ -178,7 +190,7 @@ export type DirectoryUser = {
   created_at: string;
 };
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(backendPath(path), {
     credentials: "include",
     headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
@@ -193,6 +205,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json();
 }
 export const api = {
+  monitoringResources: (range: MonitoringRange) =>
+    request<ResourceMetrics>(`/admin/v1/monitoring/resources?range=${range}`),
   providers: () =>
     request<{
       local: { enabled: boolean };

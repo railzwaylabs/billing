@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { api } from "@/api";
+import { api, backendPath } from "@/api";
 import type { SessionUser } from "@/App";
 import { AuthBrandPanel } from "@/components/auth-brand-panel";
 import { Button } from "@/components/ui/button";
@@ -97,7 +97,7 @@ export function LoginPage({
                 variant="outline"
                 className="w-full"
                 onClick={() =>
-                  location.assign("/admin/v1/auth/providers/google/login")
+                  location.assign(backendPath("/admin/v1/auth/providers/google/login"))
                 }
               >
                 Continue with Google

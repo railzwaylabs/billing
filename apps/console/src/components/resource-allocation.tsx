@@ -7,11 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { api, type MonitoringSample } from "@/api";
 
 type Period = "day" | "week" | "month";
 type Sample = [number, string];
-type MetricKey = keyof ResourceHistory;
-type PrometheusResult = { status: "success" | "error"; data?: { result?: Array<{ values?: Sample[] }> }; error?: string };
 type ResourceHistory = {
   cpuUsed: Sample[]; cpuAllocated: Sample[];
   memoryUsed: Sample[]; memoryAllocated: Sample[];
@@ -20,22 +19,6 @@ type ResourceHistory = {
 };
 type ChartRow = { timestamp: number } & Record<string, number>;
 
-const periods: Record<Period, { seconds: number; step: number }> = {
-  day: { seconds: 86_400, step: 3_600 },
-  week: { seconds: 604_800, step: 21_600 },
-  month: { seconds: 2_592_000, step: 86_400 },
-};
-const projectSelector = 'container_label_com_docker_compose_project="billing",image!=""';
-const queries: Record<MetricKey, string> = {
-  cpuUsed: `sum(rate(container_cpu_usage_seconds_total{${projectSelector}}[5m]))`,
-  cpuAllocated: `sum(clamp_min(container_spec_cpu_quota{${projectSelector}} / container_spec_cpu_period{${projectSelector}}, 0))`,
-  memoryUsed: `sum(container_memory_working_set_bytes{${projectSelector}})`,
-  memoryAllocated: `sum(container_spec_memory_limit_bytes{${projectSelector}} < 1e15)`,
-  diskUsed: `max(container_fs_usage_bytes{${projectSelector},device=~"/dev/.*"})`,
-  diskAllocated: `max(container_fs_limit_bytes{${projectSelector},device=~"/dev/.*"})`,
-  networkReceive: `sum(rate(container_network_receive_bytes_total{${projectSelector}}[5m]))`,
-  networkTransmit: `sum(rate(container_network_transmit_bytes_total{${projectSelector}}[5m]))`,
-};
 const allocationConfig = {
   used: { label: "Used", color: "var(--chart-2)" },
   allocated: { label: "Allocated", color: "var(--chart-1)" },
@@ -56,25 +39,23 @@ export function ResourceAllocation() {
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  const load = useCallback(async (selectedPeriod: Period, signal?: AbortSignal) => {
+  const load = useCallback(async (selectedPeriod: Period) => {
     setLoading(true);
     try {
-      const end = Math.floor(Date.now() / 1000);
-      const range = periods[selectedPeriod];
-      const start = end - range.seconds;
-      const entries = await Promise.all(Object.entries(queries).map(async ([key, query]) => {
-        const params = new URLSearchParams({ query, start: String(start), end: String(end), step: String(range.step) });
-        const response = await fetch(`/prometheus/api/v1/query_range?${params}`, { signal });
-        if (!response.ok) throw new Error(`Metrics request failed (${response.status})`);
-        const body = (await response.json()) as PrometheusResult;
-        if (body.status !== "success") throw new Error(body.error || "Prometheus query failed");
-        return [key, body.data?.result?.[0]?.values ?? []] as const;
-      }));
-      setHistory(Object.fromEntries(entries) as ResourceHistory);
+      const response = await api.monitoringResources(selectedPeriod);
+      setHistory({
+        cpuUsed: samples(response.cpu.used),
+        cpuAllocated: samples(response.cpu.allocated),
+        memoryUsed: samples(response.memory.used),
+        memoryAllocated: samples(response.memory.allocated),
+        diskUsed: samples(response.disk.used),
+        diskAllocated: samples(response.disk.allocated),
+        networkReceive: samples(response.network.receive),
+        networkTransmit: samples(response.network.transmit),
+      });
       setUpdatedAt(new Date());
       setError("");
     } catch (cause) {
-      if (cause instanceof DOMException && cause.name === "AbortError") return;
       setError(cause instanceof Error ? cause.message : "Unable to load resource metrics");
     } finally {
       setLoading(false);
@@ -82,10 +63,9 @@ export function ResourceAllocation() {
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void load(period, controller.signal);
-    const timer = window.setInterval(() => void load(period, controller.signal), 60_000);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    void load(period);
+    const timer = window.setInterval(() => void load(period), 60_000);
+    return () => window.clearInterval(timer);
   }, [load, period]);
 
   const cpuData = useMemo(() => mergeSeries(history.cpuUsed, history.cpuAllocated, "used", "allocated"), [history]);
@@ -170,6 +150,7 @@ function scaleSeries(rows: ChartRow[], keys: string[], scale: (value: number) =>
   });
 }
 function finiteNumber(value: string) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }
+function samples(values: MonitoringSample[]): Sample[] { return values.map((sample) => [sample.timestamp, String(sample.value)]); }
 function bytesToGiB(value: number) { return Number((value / 1024 ** 3).toFixed(3)); }
 function bytesToMiB(value: number) { return Number((value / 1024 ** 2).toFixed(3)); }
 function formatCompact(value: number) { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value); }

@@ -8,6 +8,7 @@ import (
 	"github.com/railzwaylabs/billing/internal/consoleauth/application"
 	googleauth "github.com/railzwaylabs/billing/internal/consoleauth/infrastructure/google"
 	"github.com/railzwaylabs/billing/internal/iam"
+	"github.com/railzwaylabs/billing/internal/monitoring"
 	"github.com/railzwaylabs/billing/internal/platform/database"
 	"github.com/railzwaylabs/billing/internal/platform/httpserver"
 	"github.com/railzwaylabs/billing/internal/platform/metrics"
@@ -16,34 +17,36 @@ import (
 	"github.com/spf13/viper"
 )
 
-func Admin() (database.Config, httpserver.Config, metrics.Config, pprof.Config, iam.Config, consoleauth.Config, error) {
+func Admin() (database.Config, httpserver.Config, metrics.Config, pprof.Config, iam.Config, consoleauth.Config, monitoring.Config, error) {
 	databaseConfig, httpConfig, metricsConfig, managementConfig, iamConfig, err := load("admin_api")
 	settings := newSettings()
 	return databaseConfig, httpConfig, metricsConfig, managementConfig, iamConfig, consoleauth.Config{
-		CookieName: settings.GetString("SESSION_COOKIE_NAME"),
-		CookiePath: "/",
-		Secure:     settings.GetBool("SESSION_COOKIE_SECURE"),
-		SessionTTL: settings.GetDuration("SESSION_TTL"),
-		Bootstrap: application.BootstrapConfig{
-			Enabled:     settings.GetBool("BOOTSTRAP_ADMIN_ENABLED"),
-			Username:    settings.GetString("BOOTSTRAP_ADMIN_USERNAME"),
-			Password:    settings.GetString("BOOTSTRAP_ADMIN_PASSWORD"),
-			Email:       settings.GetString("BOOTSTRAP_ADMIN_EMAIL"),
-			DisplayName: settings.GetString("BOOTSTRAP_ADMIN_DISPLAY_NAME"),
-		},
-		Google: googleauth.Config{
-			Enabled:            settings.GetBool("AUTH_GOOGLE_ENABLED"),
-			ClientID:           settings.GetString("AUTH_GOOGLE_CLIENT_ID"),
-			ClientSecret:       settings.GetString("AUTH_GOOGLE_CLIENT_SECRET"),
-			DiscoveryURL:       settings.GetString("AUTH_GOOGLE_DISCOVERY_URL"),
-			RedirectURL:        settings.GetString("AUTH_GOOGLE_REDIRECT_URL"),
-			Scopes:             settings.GetString("AUTH_GOOGLE_SCOPES"),
-			AllowSignUp:        settings.GetBool("AUTH_GOOGLE_ALLOW_SIGN_UP"),
-			AutoLogin:          settings.GetBool("AUTH_GOOGLE_AUTO_LOGIN"),
-			AllowedDomains:     settings.GetString("AUTH_GOOGLE_ALLOWED_DOMAINS"),
-			SuccessRedirectURL: settings.GetString("AUTH_GOOGLE_SUCCESS_REDIRECT_URL"),
-		},
-	}, err
+			CookieName: settings.GetString("SESSION_COOKIE_NAME"),
+			CookiePath: "/",
+			Secure:     settings.GetBool("SESSION_COOKIE_SECURE"),
+			SessionTTL: settings.GetDuration("SESSION_TTL"),
+			Bootstrap: application.BootstrapConfig{
+				Enabled:     settings.GetBool("BOOTSTRAP_ADMIN_ENABLED"),
+				Username:    settings.GetString("BOOTSTRAP_ADMIN_USERNAME"),
+				Password:    settings.GetString("BOOTSTRAP_ADMIN_PASSWORD"),
+				Email:       settings.GetString("BOOTSTRAP_ADMIN_EMAIL"),
+				DisplayName: settings.GetString("BOOTSTRAP_ADMIN_DISPLAY_NAME"),
+			},
+			Google: googleauth.Config{
+				Enabled:            settings.GetBool("AUTH_GOOGLE_ENABLED"),
+				ClientID:           settings.GetString("AUTH_GOOGLE_CLIENT_ID"),
+				ClientSecret:       settings.GetString("AUTH_GOOGLE_CLIENT_SECRET"),
+				DiscoveryURL:       settings.GetString("AUTH_GOOGLE_DISCOVERY_URL"),
+				RedirectURL:        settings.GetString("AUTH_GOOGLE_REDIRECT_URL"),
+				Scopes:             settings.GetString("AUTH_GOOGLE_SCOPES"),
+				AllowSignUp:        settings.GetBool("AUTH_GOOGLE_ALLOW_SIGN_UP"),
+				AutoLogin:          settings.GetBool("AUTH_GOOGLE_AUTO_LOGIN"),
+				AllowedDomains:     settings.GetString("AUTH_GOOGLE_ALLOWED_DOMAINS"),
+				SuccessRedirectURL: settings.GetString("AUTH_GOOGLE_SUCCESS_REDIRECT_URL"),
+			},
+		}, monitoring.Config{
+			URL: settings.GetString("PROMETHEUS_URL"), Timeout: settings.GetDuration("PROMETHEUS_TIMEOUT"),
+		}, err
 }
 
 func Public() (database.Config, httpserver.Config, metrics.Config, pprof.Config, iam.Config, error) {
@@ -83,7 +86,7 @@ func load(name string) (database.Config, httpserver.Config, metrics.Config, ppro
 }
 
 func serviceConfig(settings *viper.Viper, name string) (httpserver.Config, metrics.Config, pprof.Config) {
-	return httpserver.Config{Address: settings.GetString("HTTP_ADDRESS"), Name: name}, metrics.Config{
+	return httpserver.Config{Address: settings.GetString("HTTP_ADDRESS"), Name: name, CORSAllowedOrigins: settings.GetString("CORS_ALLOWED_ORIGINS")}, metrics.Config{
 		Address:        settings.GetString("METRICS_ADDRESS"),
 		Service:        name,
 		OrganizationID: settings.GetString("BILLING_ORGANIZATION_ID"),
@@ -99,6 +102,7 @@ func newSettings() *viper.Viper {
 	settings.SetDefault("HTTP_ADDRESS", "0.0.0.0:8080")
 	settings.SetDefault("METRICS_ADDRESS", "0.0.0.0:9090")
 	settings.SetDefault("MANAGEMENT_ADDRESS", "127.0.0.1:7070")
+	settings.SetDefault("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
 
 	settings.SetDefault("DATABASE_TYPE", "postgres")
 	settings.SetDefault("DATABASE_HOST", "localhost")
@@ -112,6 +116,8 @@ func newSettings() *viper.Viper {
 	settings.SetDefault("DATABASE_CONN_MAX_LIFETIME", 30*time.Minute)
 	settings.SetDefault("DATABASE_CONN_MAX_IDLE_TIME", 5*time.Minute)
 	settings.SetDefault("RATING_INTERVAL", time.Minute)
+	settings.SetDefault("PROMETHEUS_URL", "http://localhost:9090")
+	settings.SetDefault("PROMETHEUS_TIMEOUT", 10*time.Second)
 	settings.SetDefault("BILLING_ORGANIZATION_ID", "unknown")
 	settings.SetDefault("BILLING_PROJECT_ID", "unknown")
 	settings.SetDefault("SESSION_COOKIE_NAME", "_billing_session")
