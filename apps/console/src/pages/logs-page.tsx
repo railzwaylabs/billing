@@ -2,14 +2,18 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
-  useMemo,
+  useRef,
   useState,
 } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { RefreshCw, Search } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import { api, type LogEntry, type LogService, type Organization } from "@/api";
-import { DataTable } from "@/components/data-table";
+import {
+  formatLogTimestamp,
+  LogLevelBadge,
+  LogViewerTable,
+  logServiceName,
+} from "@/components/log-viewer-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,7 +34,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useCursorPagination } from "@/hooks/use-cursor-pagination";
 import { cn } from "@/lib/utils";
 
 type TimeRange = "15m" | "1h" | "6h" | "24h";
@@ -54,8 +57,17 @@ export function LogsPage() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [selected, setSelected] = useState<LogEntry | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const queryWindow = useRef<
+    | {
+        from: string;
+        to: string;
+      }
+    | undefined
+  >(undefined);
   const [error, setError] = useState("");
-  const pagination = useCursorPagination(100);
+  const requestID = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -81,39 +93,79 @@ export function LogsPage() {
 
   const load = useCallback(async () => {
     if (!service) return;
+    const currentRequest = ++requestID.current;
     setLoading(true);
+    setLoadingMore(false);
+    setEntries([]);
+    setNextCursor(undefined);
     const to = new Date();
     const from = new Date(to.getTime() - rangeMilliseconds[range]);
+    const window = { from: from.toISOString(), to: to.toISOString() };
+    queryWindow.current = window;
     try {
       const result = await api.logs({
         organization: organization.slug,
         service,
         level: level === "all" ? undefined : level,
         search: appliedSearch || undefined,
-        from: from.toISOString(),
-        to: to.toISOString(),
-        limit: pagination.request.limit,
-        cursor: pagination.request.cursor,
+        ...window,
+        limit: 100,
       });
+      if (requestID.current !== currentRequest) return;
       setEntries(result.entries);
-      pagination.setPageInfo({
-        has_more: Boolean(result.next_cursor),
-        next_cursor: result.next_cursor,
-      });
+      setNextCursor(result.next_cursor);
       setError("");
     } catch (cause) {
+      if (requestID.current !== currentRequest) return;
       setError(
         cause instanceof Error ? cause.message : "Unable to query service logs",
       );
     } finally {
-      setLoading(false);
+      if (requestID.current === currentRequest) setLoading(false);
+    }
+  }, [appliedSearch, level, organization.slug, range, service]);
+
+  const loadMore = useCallback(async () => {
+    if (!service || !nextCursor || loadingMore) {
+      return;
+    }
+
+    const window = queryWindow.current;
+    if (!window) return;
+
+    setLive(false);
+    setLoadingMore(true);
+    const currentRequest = requestID.current;
+    try {
+      const result = await api.logs({
+        organization: organization.slug,
+        service,
+        level: level === "all" ? undefined : level,
+        search: appliedSearch || undefined,
+        ...window,
+        limit: 100,
+        cursor: nextCursor,
+      });
+      if (requestID.current !== currentRequest) return;
+      setEntries((current) => appendUniqueLogs(current, result.entries));
+      setNextCursor(result.next_cursor);
+      setError("");
+    } catch (cause) {
+      if (requestID.current !== currentRequest) return;
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to load older service logs",
+      );
+    } finally {
+      if (requestID.current === currentRequest) setLoadingMore(false);
     }
   }, [
     appliedSearch,
     level,
+    loadingMore,
+    nextCursor,
     organization.slug,
-    pagination.cursor,
-    range,
     service,
   ]);
 
@@ -122,57 +174,17 @@ export function LogsPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!live || pagination.cursor) return;
+    if (!live) return;
     const timer = window.setInterval(() => void load(), 5_000);
     return () => window.clearInterval(timer);
-  }, [live, load, pagination.cursor]);
-
-  const columns = useMemo<ColumnDef<LogEntry>[]>(
-    () => [
-      {
-        accessorKey: "timestamp",
-        header: "Timestamp",
-        cell: ({ row }) => (
-          <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-            {formatTimestamp(row.original.timestamp)}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "level",
-        header: "Level",
-        cell: ({ row }) => <LevelBadge level={row.original.level} />,
-      },
-      {
-        accessorKey: "service",
-        header: "Service",
-        cell: ({ row }) => (
-          <span className="whitespace-nowrap text-sm">
-            {serviceName(services, row.original.service)}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "message",
-        header: "Message",
-        cell: ({ row }) => (
-          <span className="block max-w-3xl truncate font-mono text-xs">
-            {row.original.message}
-          </span>
-        ),
-      },
-    ],
-    [services],
-  );
+  }, [live, load]);
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    pagination.reset();
     setAppliedSearch(search.trim());
   }
 
   function changeFilter(action: () => void) {
-    pagination.reset();
     action();
   }
 
@@ -282,17 +294,14 @@ export function LogsPage() {
         </p>
       )}
 
-      <DataTable
-        columns={columns}
-        data={entries}
-        onRowClick={setSelected}
-        cursorPagination={{
-          cursor: pagination.cursor,
-          pageInfo: pagination.pageInfo,
-          onCursorChange: pagination.setCursor,
-          loading,
-          resetKey: `${service}:${level}:${range}:${appliedSearch}`,
-        }}
+      <LogViewerTable
+        entries={entries}
+        services={services}
+        loading={loading}
+        loadingMore={loadingMore}
+        hasMore={Boolean(nextCursor)}
+        onLoadMore={() => void loadMore()}
+        onSelect={setSelected}
       />
 
       <Dialog
@@ -303,15 +312,15 @@ export function LogsPage() {
           <DialogHeader>
             <DialogTitle>Log entry</DialogTitle>
             <DialogDescription>
-              {selected ? formatTimestamp(selected.timestamp) : ""}
+              {selected ? formatLogTimestamp(selected.timestamp) : ""}
             </DialogDescription>
           </DialogHeader>
           {selected && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <LevelBadge level={selected.level} />
+                <LogLevelBadge level={selected.level} />
                 <Badge variant="outline">
-                  {serviceName(services, selected.service)}
+                  {logServiceName(services, selected.service)}
                 </Badge>
               </div>
               <pre className="whitespace-pre-wrap break-words rounded-lg border bg-muted/40 p-4 font-mono text-xs">
@@ -330,33 +339,19 @@ export function LogsPage() {
   );
 }
 
-function LevelBadge({ level }: { level?: string }) {
-  const value = level?.toLowerCase() || "unknown";
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "uppercase",
-        value === "error" && "border-destructive/30 text-destructive",
-        value === "warn" && "border-amber-300 text-amber-700",
-        value === "info" && "border-sky-300 text-sky-700",
-      )}
-    >
-      {value}
-    </Badge>
+function appendUniqueLogs(current: LogEntry[], incoming: LogEntry[]) {
+  const existing = new Set(
+    current.map(
+      (entry) =>
+        `${entry.timestamp}\u0000${entry.service}\u0000${entry.message}`,
+    ),
   );
-}
-
-function formatTimestamp(value: string) {
-  const timestamp = new Date(value);
-  return Number.isNaN(timestamp.getTime())
-    ? value
-    : timestamp.toLocaleString(undefined, {
-        dateStyle: "medium",
-        timeStyle: "medium",
-      });
-}
-
-function serviceName(services: LogService[], id: string) {
-  return services.find((service) => service.id === id)?.name ?? id;
+  return current.concat(
+    incoming.filter(
+      (entry) =>
+        !existing.has(
+          `${entry.timestamp}\u0000${entry.service}\u0000${entry.message}`,
+        ),
+    ),
+  );
 }
