@@ -19,9 +19,22 @@ DATABASE_MAX_OPEN_CONNS: 20
 DATABASE_MAX_IDLE_CONNS: 5
 DATABASE_CONN_MAX_LIFETIME: 30m
 DATABASE_CONN_MAX_IDLE_TIME: 5m
+
+# GORM JSON logging: silent, error, warn, or info.
+DATABASE_LOG_LEVEL: warn
+DATABASE_SLOW_QUERY_THRESHOLD: 200ms
 RATING_INTERVAL: 1m
 PROMETHEUS_URL: http://localhost:9090
 PROMETHEUS_TIMEOUT: 10s
+
+# Log Explorer backend used only by admin-api.
+LOGS_PROVIDER: disabled
+LOGS_URL: http://localhost:3100
+LOGS_TENANT_ID: ""
+LOGS_USERNAME: ""
+LOGS_PASSWORD: ""
+LOGS_TIMEOUT: 10s
+LOGS_SERVICE_LABEL: billing_service
 
 IAM_ISSUER: https://identity.example.com
 IAM_AUDIENCE: billing

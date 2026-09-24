@@ -24,7 +24,7 @@ func TestQueryRangeEncodesParametersAndParsesSamples(t *testing.T) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"resultType":"matrix","result":[{"values":[[1790150400,"1.25"]]}]}}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"status":"success","data":{"resultType":"matrix","result":[{"values":[[1790146800,"NaN"],[1790150400,"1.25"]]}]}}`)),
 			Request:    request,
 		}, nil
 	})

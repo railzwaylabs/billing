@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/railzwaylabs/billing/pkg/clock"
 	"time"
 
-	"github.com/google/uuid"
-	console "github.com/railzwaylabs/billing/internal/consoleauth/domain"
+	"github.com/railzwaylabs/billing/pkg/clock"
+
 	"testing"
+
+	"github.com/google/uuid"
+
+	console "github.com/railzwaylabs/billing/internal/consoleauth/domain"
 )
 
 const bootstrapPasswordHash = "$2y$12$ZaR3rZbWFe8DGbXLg/Pg2OOy0O6sFK1MNEPUW32Ac1cO98Za.XQzy"
@@ -67,7 +70,7 @@ func TestBootstrapAdminPromptsForPasswordOnlyOnFirstLogin(t *testing.T) {
 		ID: uuid.New(), Username: "admin",
 		PasswordChangeRequired: true,
 	}, credential: console.PasswordCredential{PasswordHash: bootstrapPasswordHash}}
-	service := NewService(repository, Config{SessionTTL: time.Hour}, clock.System{})
+	service := NewService(Params{Repository: repository, Config: Config{SessionTTL: time.Hour}, Clock: clock.System{}})
 
 	first, err := service.Login(context.Background(), "admin", "admin", "test", "127.0.0.1")
 	if err != nil {

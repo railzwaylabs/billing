@@ -71,6 +71,17 @@ Meters, products, prices, customers, subscriptions, and invoices support list, c
 /admin/v1/organizations/{organization_id}/{collection}
 ```
 
+Catalog reference data:
+
+| Method | Path |
+| --- | --- |
+| `GET` | `/admin/v1/organizations/{organization_id}/reference/currencies` |
+| `GET` | `/admin/v1/organizations/{organization_id}/reference/measurement-units` |
+
+Price requests contain `charges[]`; every charge contains `meter_id`,
+`pricing_model`, `unit_quantity_micros`, and `tiers[]`. Subscription requests
+contain effective-dated `items[]` rather than a flat list of price IDs.
+
 Invoice numbering settings:
 
 | Method | Path |
@@ -91,13 +102,34 @@ Invoice generation is performed by the rating worker rather than an HTTP endpoin
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/admin/v1/monitoring/resources?range=day\|week\|month` | Session-authenticated CPU, memory, disk, and network history |
+| `GET` | `/admin/v1/monitoring/services?organization={slug}` | Health and current utilization for registered services |
+| `GET` | `/admin/v1/monitoring/services/{service}?organization={slug}` | Health and current utilization for one service |
+| `GET` | `/admin/v1/monitoring/services/{service}/resources?organization={slug}&range=day\|week\|month` | CPU, memory, disk, and network history for one service |
 
 The monitoring endpoint accepts only the documented range selector. PromQL,
 start/end timestamps, step size, and container selectors are controlled by the
 admin API. Prometheus remains a private infrastructure dependency. An invalid
-range returns `MONITORING_RANGE_INVALID`; an upstream failure or timeout
-returns `MONITORING_UNAVAILABLE`.
+range returns `MONITORING_RANGE_INVALID`, an unknown service returns
+`MONITORING_SERVICE_INVALID`, and an upstream failure or timeout returns
+`MONITORING_UNAVAILABLE`. The active principal must have
+`billing.monitoring.get` on `organizations/{slug}`.
+
+## Logs
+
+The log-query API exists only on admin-api and requires the Console session
+cookie through the same `/admin/v1` authentication middleware as monitoring.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/admin/v1/logs/services?organization={slug}` | Services allowed as log-query targets |
+| `GET` | `/admin/v1/logs/query?organization={slug}&service={service}` | Query normalized log entries from the configured provider |
+
+`level`, `search`, RFC 3339 `from`/`to`, `limit`, and opaque `cursor` are
+optional query parameters. The API accepts only registered services and log
+levels, limits searches to 30 days and 500 entries, and constructs LogQL on the
+server. Provider credentials and arbitrary LogQL are never exposed to clients.
+The active principal must have `billing.logs.list` on
+`organizations/{slug}`.
 
 ## IAM
 

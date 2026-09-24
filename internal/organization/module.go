@@ -2,6 +2,8 @@ package organization
 
 import (
 	"github.com/gin-gonic/gin"
+	"go.uber.org/fx"
+
 	"github.com/railzwaylabs/billing/internal/authn"
 	"github.com/railzwaylabs/billing/internal/consoleauth"
 	"github.com/railzwaylabs/billing/internal/iam/application"
@@ -10,7 +12,6 @@ import (
 	orgrepo "github.com/railzwaylabs/billing/internal/organization/infrastructure/repository"
 	orghttp "github.com/railzwaylabs/billing/internal/organization/transport/http"
 	"github.com/railzwaylabs/billing/internal/platform/database"
-	"go.uber.org/fx"
 )
 
 var Module = fx.Module("organization",

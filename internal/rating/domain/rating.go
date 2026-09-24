@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	catalogue "github.com/railzwaylabs/billing/internal/catalogue/domain"
 	meterdomain "github.com/railzwaylabs/billing/internal/meter/domain"
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
@@ -26,6 +27,7 @@ type Result struct {
 	SubscriptionItemID uuid.UUID
 	ProductID          uuid.UUID
 	PriceID            uuid.UUID
+	PriceChargeID      uuid.UUID
 	MeterID            uuid.UUID
 	PeriodStart        time.Time
 	PeriodEnd          time.Time
@@ -56,16 +58,16 @@ func Aggregate(aggregation meterdomain.Aggregation, events []usage.Event) (share
 }
 
 // Calculate applies graduated tiers. Each tier only prices usage within its own range.
-func Calculate(quantity shareddomain.Quantity, price catalogue.Price) (shareddomain.Money, []TierBreakdown, error) {
+func Calculate(quantity shareddomain.Quantity, currency string, charge catalogue.PriceCharge) (shareddomain.Money, []TierBreakdown, error) {
 	if err := quantity.Validate(); err != nil {
 		return shareddomain.Money{}, nil, err
 	}
 
-	if len(price.Tiers) == 0 || price.UnitQuantity.Micros <= 0 {
+	if len(charge.Tiers) == 0 || charge.UnitQuantity.Micros <= 0 {
 		return shareddomain.Money{}, nil, fmt.Errorf("price has no valid tiers")
 	}
 
-	tiers := append([]catalogue.PriceTier(nil), price.Tiers...)
+	tiers := append([]catalogue.ChargeTier(nil), charge.Tiers...)
 	sort.Slice(tiers, func(i, j int) bool {
 		return tiers[i].StartQuantity.Micros < tiers[j].StartQuantity.Micros
 	})
@@ -74,7 +76,7 @@ func Calculate(quantity shareddomain.Quantity, price catalogue.Price) (shareddom
 		return shareddomain.Money{}, nil, fmt.Errorf("first tier must start at zero")
 	}
 
-	total, err := shareddomain.NewMoney(price.Currency, 0)
+	total, err := shareddomain.NewMoney(currency, 0)
 	if err != nil {
 		return shareddomain.Money{}, nil, err
 	}
@@ -92,7 +94,7 @@ func Calculate(quantity shareddomain.Quantity, price catalogue.Price) (shareddom
 		}
 
 		band := shareddomain.Quantity{Micros: end - start}
-		amount, err := shareddomain.Price(band, price.UnitQuantity, tier.UnitAmount)
+		amount, err := shareddomain.Price(band, charge.UnitQuantity, tier.UnitAmount)
 		if err != nil {
 			return shareddomain.Money{}, nil, err
 		}

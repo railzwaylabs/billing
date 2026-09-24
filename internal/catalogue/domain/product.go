@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/pkg/types"
 )
 
@@ -20,7 +21,6 @@ const (
 type Product struct {
 	ID             uuid.UUID
 	OrganizationID uuid.UUID
-	MeterID        uuid.UUID
 	Code           string
 	Name           string
 	Description    string
@@ -36,8 +36,8 @@ func NewProduct(product Product, now time.Time) (Product, error) {
 	}
 	product.Code = strings.TrimSpace(product.Code)
 	product.Name = strings.TrimSpace(product.Name)
-	if product.OrganizationID == uuid.Nil || product.MeterID == uuid.Nil {
-		return Product{}, fmt.Errorf("organization and meter are required")
+	if product.OrganizationID == uuid.Nil {
+		return Product{}, fmt.Errorf("organization is required")
 	}
 	if product.Code == "" || product.Name == "" {
 		return Product{}, fmt.Errorf("product code and name are required")

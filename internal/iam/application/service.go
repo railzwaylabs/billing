@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/fx"
+
 	"github.com/railzwaylabs/billing/internal/iam/domain"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	"github.com/railzwaylabs/billing/pkg/clock"
@@ -31,6 +33,7 @@ const (
 	permissionAPIKeyRevoke domain.PermissionName = "billing.apiKeys.revoke"
 )
 
+// Service coordinates IAM policy, role, service-account, and API-key use cases.
 type Service struct {
 	policies     domain.PolicyStore
 	roles        domain.RoleStore
@@ -42,8 +45,22 @@ type Service struct {
 	clock        clock.Clock
 }
 
-func NewService(policies domain.PolicyStore, roles domain.RoleStore, accounts domain.ServiceAccountStore, apiKeys domain.APIKeyStore, users domain.UserDirectory, keyGenerator domain.APIKeyGenerator, evaluator domain.Evaluator, clock clock.Clock) *Service {
-	return &Service{policies: policies, roles: roles, accounts: accounts, apiKeys: apiKeys, users: users, keyGenerator: keyGenerator, evaluator: evaluator, clock: clock}
+// Params declares Service dependencies.
+type Params struct {
+	fx.In
+	Policies     domain.PolicyStore
+	Roles        domain.RoleStore
+	Accounts     domain.ServiceAccountStore
+	APIKeys      domain.APIKeyStore
+	Users        domain.UserDirectory
+	KeyGenerator domain.APIKeyGenerator
+	Evaluator    domain.Evaluator
+	Clock        clock.Clock
+}
+
+// NewService constructs the IAM application service.
+func NewService(p Params) *Service {
+	return &Service{policies: p.Policies, roles: p.Roles, accounts: p.Accounts, apiKeys: p.APIKeys, users: p.Users, keyGenerator: p.KeyGenerator, evaluator: p.Evaluator, clock: p.Clock}
 }
 
 // BootstrapOrganizationOwner is called by the organization creation workflow

@@ -2,143 +2,200 @@ package domain
 
 import (
 	"fmt"
-	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
 	"github.com/railzwaylabs/billing/pkg/types"
 )
 
-type AggregationInterval string
 type BillingInterval string
 type PriceStatus string
+type PricingModel string
 
 const (
-	AggregationDaily   AggregationInterval = "day"
-	AggregationMonthly AggregationInterval = "month"
-
-	BillingDay   BillingInterval = "day"
-	BillingWeek  BillingInterval = "week"
-	BillingMonth BillingInterval = "month"
-	BillingYear  BillingInterval = "year"
-
-	PriceActive   PriceStatus = "active"
-	PriceInactive PriceStatus = "inactive"
-	PriceArchived PriceStatus = "archived"
+	BillingDay       BillingInterval = "day"
+	BillingWeek      BillingInterval = "week"
+	BillingMonth     BillingInterval = "month"
+	BillingYear      BillingInterval = "year"
+	PriceActive      PriceStatus     = "active"
+	PriceInactive    PriceStatus     = "inactive"
+	PriceArchived    PriceStatus     = "archived"
+	PricingPerUnit   PricingModel    = "per_unit"
+	PricingGraduated PricingModel    = "graduated"
 )
 
-type PriceTier struct {
+type ChargeTier struct {
 	ID             uuid.UUID
 	OrganizationID uuid.UUID
-	PriceID        uuid.UUID
+	ChargeID       uuid.UUID
 	StartQuantity  shareddomain.Quantity
 	UnitAmount     shareddomain.Money
 	CreatedAt      time.Time
 }
 
+type PriceCharge struct {
+	ID             uuid.UUID
+	OrganizationID uuid.UUID
+	PriceID        uuid.UUID
+	MeterID        uuid.UUID
+	Code           string
+	Name           string
+	PricingModel   PricingModel
+	UnitQuantity   shareddomain.Quantity
+	Tiers          []ChargeTier
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type Price struct {
-	ID                  uuid.UUID
-	OrganizationID      uuid.UUID
-	ProductID           uuid.UUID
-	Currency            string
-	UnitQuantity        shareddomain.Quantity
-	AggregationInterval AggregationInterval
-	BillingInterval     BillingInterval
-	IntervalCount       int
-	EffectiveAt         time.Time
-	EffectiveUntil      *time.Time
-	Status              PriceStatus
-	Metadata            types.JSONB
-	Tiers               []PriceTier
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID              uuid.UUID
+	OrganizationID  uuid.UUID
+	ProductID       uuid.UUID
+	Currency        string
+	BillingInterval BillingInterval
+	IntervalCount   int
+	EffectiveAt     time.Time
+	EffectiveUntil  *time.Time
+	Status          PriceStatus
+	Metadata        types.JSONB
+	Charges         []PriceCharge
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 func NewPrice(price Price, now time.Time) (Price, error) {
 	if price.ID == uuid.Nil {
 		price.ID = uuid.New()
 	}
+
 	if price.OrganizationID == uuid.Nil || price.ProductID == uuid.Nil {
 		return Price{}, fmt.Errorf("organization and product are required")
 	}
+
+	price.Currency = strings.ToUpper(strings.TrimSpace(price.Currency))
 	if _, err := shareddomain.NewMoney(price.Currency, 0); err != nil {
 		return Price{}, err
 	}
-	if price.UnitQuantity.Micros <= 0 {
-		return Price{}, fmt.Errorf("unit quantity must be positive")
-	}
-	if price.AggregationInterval != AggregationDaily && price.AggregationInterval != AggregationMonthly {
-		return Price{}, fmt.Errorf("invalid aggregation interval %q", price.AggregationInterval)
-	}
+
 	if !price.BillingInterval.Valid() || price.IntervalCount <= 0 {
 		return Price{}, fmt.Errorf("valid billing interval and positive interval count are required")
 	}
+
 	if price.EffectiveAt.IsZero() {
 		return Price{}, fmt.Errorf("effective time is required")
 	}
+
 	if price.EffectiveUntil != nil && !price.EffectiveUntil.After(price.EffectiveAt) {
 		return Price{}, fmt.Errorf("effective end must be after effective start")
 	}
+
 	if price.Status == "" {
 		price.Status = PriceActive
 	}
+
 	if !price.Status.Valid() {
 		return Price{}, fmt.Errorf("invalid price status %q", price.Status)
 	}
-	if err := validateTiers(price.ID, price.OrganizationID, price.Currency, price.Tiers); err != nil {
-		return Price{}, err
+
+	if len(price.Charges) == 0 {
+		return Price{}, fmt.Errorf("at least one price charge is required")
 	}
-	for i := range price.Tiers {
-		price.Tiers[i].CreatedAt = now.UTC()
+
+	now = now.UTC()
+	seenCodes := make(map[string]struct{}, len(price.Charges))
+	for i := range price.Charges {
+		charge := &price.Charges[i]
+		if charge.ID == uuid.Nil {
+			charge.ID = uuid.New()
+		}
+
+		if charge.OrganizationID == uuid.Nil {
+			charge.OrganizationID = price.OrganizationID
+		}
+
+		if charge.PriceID == uuid.Nil {
+			charge.PriceID = price.ID
+		}
+
+		charge.Code, charge.Name = strings.TrimSpace(charge.Code), strings.TrimSpace(charge.Name)
+		if charge.OrganizationID != price.OrganizationID || charge.PriceID != price.ID || charge.MeterID == uuid.Nil {
+			return Price{}, fmt.Errorf("price charge belongs to another price or organization, or has no meter")
+		}
+
+		if charge.Code == "" || charge.Name == "" {
+			return Price{}, fmt.Errorf("charge code and name are required")
+		}
+
+		if _, exists := seenCodes[charge.Code]; exists {
+			return Price{}, fmt.Errorf("duplicate charge code %q", charge.Code)
+		}
+
+		seenCodes[charge.Code] = struct{}{}
+		if !charge.PricingModel.Valid() {
+			return Price{}, fmt.Errorf("invalid pricing model %q", charge.PricingModel)
+		}
+
+		if charge.UnitQuantity.Micros <= 0 {
+			return Price{}, fmt.Errorf("charge unit quantity must be positive")
+		}
+
+		charge.CreatedAt, charge.UpdatedAt = now, now
+		if err := validateTiers(charge, price.Currency); err != nil {
+			return Price{}, fmt.Errorf("charge %q: %w", charge.Code, err)
+		}
+
 	}
-	price.Tiers = append([]PriceTier(nil), price.Tiers...)
-	sort.Slice(price.Tiers, func(i, j int) bool {
-		return price.Tiers[i].StartQuantity.Micros < price.Tiers[j].StartQuantity.Micros
-	})
-	price.CreatedAt = now.UTC()
-	price.UpdatedAt = price.CreatedAt
+
+	price.CreatedAt, price.UpdatedAt = now, now
 	return price, nil
 }
 
-func validateTiers(priceID, organizationID uuid.UUID, currency string, tiers []PriceTier) error {
-	if len(tiers) == 0 {
-		return fmt.Errorf("at least one price tier is required")
+func validateTiers(charge *PriceCharge, currency string) error {
+	if len(charge.Tiers) == 0 {
+		return fmt.Errorf("at least one tier is required")
 	}
-	seen := make(map[int64]struct{}, len(tiers))
-	hasZero := false
-	for i := range tiers {
-		tier := &tiers[i]
+
+	if charge.Tiers[0].StartQuantity.Micros != 0 {
+		return fmt.Errorf("first tier must start at zero")
+	}
+
+	if charge.PricingModel == PricingPerUnit && len(charge.Tiers) != 1 {
+		return fmt.Errorf("per-unit pricing requires exactly one tier")
+	}
+
+	for i := range charge.Tiers {
+		tier := &charge.Tiers[i]
 		if tier.ID == uuid.Nil {
 			tier.ID = uuid.New()
 		}
+
 		if tier.OrganizationID == uuid.Nil {
-			tier.OrganizationID = organizationID
+			tier.OrganizationID = charge.OrganizationID
 		}
-		if tier.PriceID == uuid.Nil {
-			tier.PriceID = priceID
+
+		if tier.ChargeID == uuid.Nil {
+			tier.ChargeID = charge.ID
 		}
-		if tier.OrganizationID != organizationID || tier.PriceID != priceID {
-			return fmt.Errorf("price tier belongs to another price or organization")
+
+		if tier.OrganizationID != charge.OrganizationID || tier.ChargeID != charge.ID {
+			return fmt.Errorf("tier belongs to another charge or organization")
 		}
-		if tier.StartQuantity.Micros < 0 {
-			return fmt.Errorf("tier start quantity must not be negative")
+
+		if tier.StartQuantity.Micros < 0 || (i > 0 && tier.StartQuantity.Micros <= charge.Tiers[i-1].StartQuantity.Micros) {
+			return fmt.Errorf("tier starts must be strictly increasing")
 		}
+
 		if tier.UnitAmount.Currency != currency || tier.UnitAmount.Nanos < 0 {
-			return fmt.Errorf("tier currency must match price currency")
+			return fmt.Errorf("tier currency must match price currency and amount cannot be negative")
 		}
-		if _, ok := seen[tier.StartQuantity.Micros]; ok {
-			return fmt.Errorf("duplicate tier start quantity")
-		}
-		if i > 0 && tier.StartQuantity.Micros <= tiers[i-1].StartQuantity.Micros {
-			return fmt.Errorf("tier start quantity must be greater than the previous tier")
-		}
-		seen[tier.StartQuantity.Micros] = struct{}{}
-		hasZero = hasZero || tier.StartQuantity.Micros == 0
+
+		tier.CreatedAt = charge.CreatedAt
+
 	}
-	if !hasZero {
-		return fmt.Errorf("first price tier must start at zero")
-	}
+
 	return nil
 }
 
@@ -150,6 +207,18 @@ func (s PriceStatus) Valid() bool {
 	return s == PriceActive || s == PriceInactive || s == PriceArchived
 }
 
+func (m PricingModel) Valid() bool {
+	return m == PricingPerUnit || m == PricingGraduated
+}
+
 func (p Price) EffectiveAtTime(at time.Time) bool {
-	return !at.Before(p.EffectiveAt) && (p.EffectiveUntil == nil || at.Before(*p.EffectiveUntil))
+	if at.Before(p.EffectiveAt) {
+		return false
+	}
+
+	if p.EffectiveUntil != nil {
+		return at.Before(*p.EffectiveUntil)
+	}
+
+	return true
 }

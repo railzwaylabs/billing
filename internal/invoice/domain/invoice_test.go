@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
 )
 
@@ -24,6 +25,7 @@ func TestNewInvoiceCalculatesTotalsFromLines(t *testing.T) {
 			SubscriptionItemID:  uuid.New(),
 			ProductID:           uuid.New(),
 			PriceID:             uuid.New(),
+			PriceChargeID:       uuid.New(),
 			MeterID:             uuid.New(),
 			Description:         "API requests",
 			UsageQuantity:       quantity,

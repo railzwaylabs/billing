@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/railzwaylabs/billing/internal/iam/domain"
 	"github.com/railzwaylabs/billing/internal/platform/database"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const policyChannel = "billing_iam_policy_changed"
@@ -264,10 +265,12 @@ func (r *Repository) ensureVersion(ctx context.Context, db *gorm.DB, organizatio
 	if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&policyVersionModel{OrganizationID: organizationID, Version: 1, UpdatedAt: now}).Error; err != nil {
 		return 0, err
 	}
+
 	var value policyVersionModel
 	if err := db.WithContext(ctx).First(&value, "organization_id = ?", organizationID).Error; err != nil {
 		return 0, err
 	}
+
 	return value.Version, nil
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -7,10 +7,16 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { Button } from "@/components/ui/button";
+import type { PageInfo } from "@/api";
 import { Input } from "@/components/ui/input";
 import { SearchX } from "lucide-react";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Table,
   TableBody,
@@ -19,6 +25,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+
+export type CursorPagination = {
+  cursor?: string;
+  pageInfo: PageInfo;
+  onCursorChange: (cursor?: string) => void;
+  loading?: boolean;
+  resetKey?: string;
+};
 
 export function DataTable<TData, TValue>({
   columns,
@@ -26,14 +47,22 @@ export function DataTable<TData, TValue>({
   searchKey,
   searchPlaceholder = "Search…",
   onRowClick,
+  cursorPagination,
 }: {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchKey?: string;
   searchPlaceholder?: string;
   onRowClick?: (row: TData) => void;
+  cursorPagination?: CursorPagination;
 }) {
   const [globalFilter, setGlobalFilter] = useState("");
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>(
+    [],
+  );
+  useEffect(() => {
+    setCursorHistory([]);
+  }, [cursorPagination?.resetKey]);
   const table = useReactTable({
     data,
     columns,
@@ -41,8 +70,24 @@ export function DataTable<TData, TValue>({
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    getPaginationRowModel: cursorPagination
+      ? undefined
+      : getPaginationRowModel(),
   });
+  const previousCursor = () => {
+    if (!cursorPagination || cursorHistory.length === 0) return;
+    const history = [...cursorHistory];
+    const cursor = history.pop();
+    setCursorHistory(history);
+    cursorPagination.onCursorChange(cursor);
+  };
+  const nextCursor = () => {
+    const next = cursorPagination?.pageInfo.next_cursor;
+    if (!cursorPagination || !next) return;
+    setCursorHistory([...cursorHistory, cursorPagination.cursor]);
+    cursorPagination.onCursorChange(next);
+  };
+  const cursorDisabled = cursorPagination?.loading === true;
   return (
     <div className="w-full space-y-4">
       {searchKey && (
@@ -98,15 +143,20 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="p-0"
-                >
+                <TableCell colSpan={columns.length} className="p-0">
                   <Empty className="min-h-40 border-0 py-8">
                     <EmptyHeader>
-                      <EmptyMedia variant="icon"><SearchX /></EmptyMedia>
-                      <EmptyTitle>{globalFilter ? "No matching results" : "No data yet"}</EmptyTitle>
-                      <EmptyDescription>{globalFilter ? "Try changing or clearing the current filter." : "Resources will appear here after they are created."}</EmptyDescription>
+                      <EmptyMedia variant="icon">
+                        <SearchX />
+                      </EmptyMedia>
+                      <EmptyTitle>
+                        {globalFilter ? "No matching results" : "No data yet"}
+                      </EmptyTitle>
+                      <EmptyDescription>
+                        {globalFilter
+                          ? "Try changing or clearing the current filter."
+                          : "Resources will appear here after they are created."}
+                      </EmptyDescription>
                     </EmptyHeader>
                   </Empty>
                 </TableCell>
@@ -115,26 +165,103 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      {table.getPageCount() > 1 && (
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
-      )}
+      {cursorPagination ? (
+        <Pagination className="justify-end">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                aria-disabled={cursorHistory.length === 0 || cursorDisabled}
+                tabIndex={cursorHistory.length === 0 || cursorDisabled ? -1 : 0}
+                className={
+                  cursorHistory.length === 0 || cursorDisabled
+                    ? "pointer-events-none opacity-50"
+                    : undefined
+                }
+                onClick={(event) => {
+                  event.preventDefault();
+                  previousCursor();
+                }}
+              />
+            </PaginationItem>
+            <PaginationItem>
+              <span className="flex h-9 items-center px-3 text-sm text-muted-foreground">
+                Page {cursorHistory.length + 1}
+              </span>
+            </PaginationItem>
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                aria-disabled={
+                  !cursorPagination.pageInfo.has_more ||
+                  !cursorPagination.pageInfo.next_cursor ||
+                  cursorDisabled
+                }
+                tabIndex={
+                  !cursorPagination.pageInfo.has_more ||
+                  !cursorPagination.pageInfo.next_cursor ||
+                  cursorDisabled
+                    ? -1
+                    : 0
+                }
+                className={
+                  !cursorPagination.pageInfo.has_more ||
+                  !cursorPagination.pageInfo.next_cursor ||
+                  cursorDisabled
+                    ? "pointer-events-none opacity-50"
+                    : undefined
+                }
+                onClick={(event) => {
+                  event.preventDefault();
+                  nextCursor();
+                }}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      ) : table.getPageCount() > 1 ? (
+        <Pagination className="justify-end">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                aria-disabled={!table.getCanPreviousPage()}
+                tabIndex={table.getCanPreviousPage() ? 0 : -1}
+                className={
+                  table.getCanPreviousPage()
+                    ? undefined
+                    : "pointer-events-none opacity-50"
+                }
+                onClick={(event) => {
+                  event.preventDefault();
+                  table.previousPage();
+                }}
+              />
+            </PaginationItem>
+            <PaginationItem>
+              <span className="flex h-9 items-center px-3 text-sm text-muted-foreground">
+                Page {table.getState().pagination.pageIndex + 1}
+              </span>
+            </PaginationItem>
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                aria-disabled={!table.getCanNextPage()}
+                tabIndex={table.getCanNextPage() ? 0 : -1}
+                className={
+                  table.getCanNextPage()
+                    ? undefined
+                    : "pointer-events-none opacity-50"
+                }
+                onClick={(event) => {
+                  event.preventDefault();
+                  table.nextPage();
+                }}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      ) : null}
     </div>
   );
 }

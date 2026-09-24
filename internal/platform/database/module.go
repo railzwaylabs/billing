@@ -26,6 +26,8 @@ type Config struct {
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
 	ConnMaxIdleTime time.Duration
+	LogLevel        string
+	SlowThreshold   time.Duration
 }
 
 var Module = fx.Module("database", fx.Provide(NewDatabase))
@@ -49,7 +51,9 @@ func (config Config) DSN() string {
 }
 
 func NewDatabase(lc fx.Lifecycle, config Config, logger *zap.Logger) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(config.DSN()), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(config.DSN()), &gorm.Config{
+		Logger: NewGORMLogger(logger.Named("gorm"), config.LogLevel, config.SlowThreshold),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open billing database: %w", err)
 	}

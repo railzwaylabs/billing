@@ -3,16 +3,18 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/railzwaylabs/billing/internal/invoice/domain"
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	"github.com/railzwaylabs/billing/pkg/types"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type invoiceModel struct {
@@ -51,6 +53,7 @@ type lineModel struct {
 	SubscriptionItemID  *uuid.UUID  `gorm:"column:subscription_item_id"`
 	ProductID           uuid.UUID   `gorm:"column:product_id"`
 	PriceID             uuid.UUID   `gorm:"column:price_id"`
+	PriceChargeID       uuid.UUID   `gorm:"column:price_charge_id"`
 	MeterID             uuid.UUID   `gorm:"column:meter_id"`
 	Description         string      `gorm:"column:description"`
 	UsageQuantity       string      `gorm:"column:usage_quantity"`
@@ -235,7 +238,7 @@ func lineToModel(v domain.Line) *lineModel {
 	if v.SubscriptionItemID != uuid.Nil {
 		si = &v.SubscriptionItemID
 	}
-	return &lineModel{ID: v.ID, OrganizationID: v.OrganizationID, InvoiceID: v.InvoiceID, SubscriptionID: s, SubscriptionItemID: si, ProductID: v.ProductID, PriceID: v.PriceID, MeterID: v.MeterID, Description: v.Description, UsageQuantity: fixed(v.UsageQuantity.Micros, 6), Unit: v.Unit, PricingUnitQuantity: fixed(v.PricingUnitQuantity.Micros, 6), UnitAmount: fixed(v.UnitAmount.Nanos, 9), Amount: fixed(v.Amount.Nanos, 9), PricingDetails: v.PricingDetails, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+	return &lineModel{ID: v.ID, OrganizationID: v.OrganizationID, InvoiceID: v.InvoiceID, SubscriptionID: s, SubscriptionItemID: si, ProductID: v.ProductID, PriceID: v.PriceID, PriceChargeID: v.PriceChargeID, MeterID: v.MeterID, Description: v.Description, UsageQuantity: fixed(v.UsageQuantity.Micros, 6), Unit: v.Unit, PricingUnitQuantity: fixed(v.PricingUnitQuantity.Micros, 6), UnitAmount: fixed(v.UnitAmount.Nanos, 9), Amount: fixed(v.Amount.Nanos, 9), PricingDetails: v.PricingDetails, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 }
 func toLine(m lineModel, currency string) (domain.Line, error) {
 	q, e := parse(m.UsageQuantity, 6)
@@ -254,7 +257,7 @@ func toLine(m lineModel, currency string) (domain.Line, error) {
 	if e != nil {
 		return domain.Line{}, e
 	}
-	v := domain.Line{ID: m.ID, OrganizationID: m.OrganizationID, InvoiceID: m.InvoiceID, ProductID: m.ProductID, PriceID: m.PriceID, MeterID: m.MeterID, Description: m.Description, UsageQuantity: shareddomain.Quantity{Micros: q}, Unit: m.Unit, PricingUnitQuantity: shareddomain.Quantity{Micros: pq}, UnitAmount: shareddomain.Money{Currency: currency, Nanos: ua}, Amount: shareddomain.Money{Currency: currency, Nanos: a}, PricingDetails: m.PricingDetails, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	v := domain.Line{ID: m.ID, OrganizationID: m.OrganizationID, InvoiceID: m.InvoiceID, ProductID: m.ProductID, PriceID: m.PriceID, PriceChargeID: m.PriceChargeID, MeterID: m.MeterID, Description: m.Description, UsageQuantity: shareddomain.Quantity{Micros: q}, Unit: m.Unit, PricingUnitQuantity: shareddomain.Quantity{Micros: pq}, UnitAmount: shareddomain.Money{Currency: currency, Nanos: ua}, Amount: shareddomain.Money{Currency: currency, Nanos: a}, PricingDetails: m.PricingDetails, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
 	if m.SubscriptionID != nil {
 		v.SubscriptionID = *m.SubscriptionID
 	}

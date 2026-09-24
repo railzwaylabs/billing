@@ -2,19 +2,31 @@ package application
 
 import (
 	"context"
+
 	"github.com/google/uuid"
+	"go.uber.org/fx"
+
 	"github.com/railzwaylabs/billing/internal/meter/domain"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
 	"github.com/railzwaylabs/billing/pkg/clock"
 )
 
+// Service coordinates meter lifecycle use cases.
 type Service struct {
 	repository domain.Repository
 	clock      clock.Clock
 }
 
-func New(repository domain.Repository, clock clock.Clock) *Service {
-	return &Service{repository: repository, clock: clock}
+// Params declares the dependencies required by Service.
+type Params struct {
+	fx.In
+	Repository domain.Repository
+	Clock      clock.Clock
+}
+
+// New constructs the meter application service.
+func New(p Params) *Service {
+	return &Service{repository: p.Repository, clock: p.Clock}
 }
 func (s *Service) Create(ctx context.Context, meter domain.Meter) (domain.Meter, error) {
 	value, err := domain.NewMeter(meter, s.clock.Now())

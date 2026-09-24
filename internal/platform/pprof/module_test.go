@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/railzwaylabs/billing/internal/platform/logging"
 	"go.uber.org/zap"
+
+	"github.com/railzwaylabs/billing/internal/platform/logging"
 )
 
 func TestServerRegistersPprofWithoutAdminLogMode(t *testing.T) {

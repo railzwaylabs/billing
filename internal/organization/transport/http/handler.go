@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/internal/authn"
 	"github.com/railzwaylabs/billing/internal/organization/application"
 	"github.com/railzwaylabs/billing/internal/organization/domain"

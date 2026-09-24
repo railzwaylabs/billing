@@ -3,14 +3,16 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
-	"github.com/railzwaylabs/billing/internal/shared/pagination"
-	"github.com/railzwaylabs/billing/internal/usage/domain"
-	"gorm.io/gorm"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
+	"github.com/railzwaylabs/billing/internal/shared/pagination"
+	"github.com/railzwaylabs/billing/internal/usage/domain"
 )
 
 type eventModel struct {
@@ -70,9 +72,10 @@ func (r *Repository) ListForPeriod(ctx context.Context, o, meterID, customerID u
 }
 func (r *Repository) Summary(ctx context.Context, organizationID uuid.UUID, start, end time.Time, interval domain.SummaryInterval) ([]domain.UsagePoint, error) {
 	datePart := "month"
-	if interval == domain.SummaryDaily {
+	switch interval {
+	case domain.SummaryDaily:
 		datePart = "day"
-	} else if interval == domain.SummaryWeekly {
+	case domain.SummaryWeekly:
 		datePart = "week"
 	}
 	type row struct {

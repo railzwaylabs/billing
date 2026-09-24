@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/fx"
+
 	"github.com/railzwaylabs/billing/internal/config"
 	"github.com/railzwaylabs/billing/internal/iam"
 	"github.com/railzwaylabs/billing/internal/platform/database"
@@ -12,7 +14,6 @@ import (
 	"github.com/railzwaylabs/billing/internal/platform/metrics"
 	"github.com/railzwaylabs/billing/internal/platform/pprof"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"go.uber.org/fx"
 )
 
 func main() {

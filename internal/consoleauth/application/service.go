@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/fx"
+	"golang.org/x/crypto/bcrypt"
+
 	console "github.com/railzwaylabs/billing/internal/consoleauth/domain"
 	iamdomain "github.com/railzwaylabs/billing/internal/iam/domain"
 	"github.com/railzwaylabs/billing/internal/shared/apperror"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type Config struct{ SessionTTL time.Duration }
@@ -48,17 +50,27 @@ type ExternalLogin struct {
 	IPAddress   string
 }
 
+// Service implements local and external console authentication workflows.
 type Service struct {
 	repository console.Repository
 	config     Config
 	clock      clock.Clock
 }
 
-func NewService(repository console.Repository, config Config, clock clock.Clock) *Service {
-	if config.SessionTTL <= 0 {
-		config.SessionTTL = 24 * time.Hour
+// Params declares Service dependencies.
+type Params struct {
+	fx.In
+	Repository console.Repository
+	Config     Config
+	Clock      clock.Clock
+}
+
+// NewService constructs the console authentication service.
+func NewService(p Params) *Service {
+	if p.Config.SessionTTL <= 0 {
+		p.Config.SessionTTL = 24 * time.Hour
 	}
-	return &Service{repository: repository, config: config, clock: clock}
+	return &Service{repository: p.Repository, config: p.Config, clock: p.Clock}
 }
 
 func (s *Service) BootstrapAdmin(ctx context.Context, config BootstrapConfig) (bool, error) {
@@ -164,18 +176,22 @@ func (s *Service) ChangePassword(ctx context.Context, userID uuid.UUID, currentP
 	if len(newPassword) < 12 {
 		return apperror.New(apperror.KindInvalid, "PASSWORD_TOO_SHORT", "New password must contain at least 12 characters")
 	}
+
 	user, err := s.repository.FindUserByID(ctx, userID)
 	if err != nil {
 		return iamdomain.NewUnauthenticatedError()
 	}
+
 	credential, err := s.repository.FindPasswordCredential(ctx, user.ID)
 	if err != nil || bcrypt.CompareHashAndPassword([]byte(credential.PasswordHash), []byte(currentPassword)) != nil {
 		return iamdomain.NewUnauthenticatedError()
 	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
 	if err != nil {
 		return err
 	}
+
 	return s.repository.UpdatePassword(ctx, userID, string(hash), s.clock.Now())
 }
 
@@ -184,6 +200,7 @@ func (s *Service) SkipPasswordChange(ctx context.Context, userID uuid.UUID) erro
 	if err != nil || user.Disabled {
 		return iamdomain.NewUnauthenticatedError()
 	}
+
 	return s.repository.MarkPasswordPrompted(ctx, userID, s.clock.Now())
 }
 
@@ -197,6 +214,7 @@ func generateSessionToken() (string, []byte, error) {
 	if _, err := rand.Read(secret); err != nil {
 		return "", nil, err
 	}
+
 	raw := base64.RawURLEncoding.EncodeToString(secret)
 	hash := sha256.Sum256([]byte(raw))
 	return raw, hash[:], nil

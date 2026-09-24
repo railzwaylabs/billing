@@ -19,12 +19,14 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useCursorPagination } from "@/hooks/use-cursor-pagination";
 
 export function IAMPage() {
   const { organization } = useOutletContext<{ organization: Organization }>();
   const { roleId } = useParams();
   const navigate = useNavigate();
   const client = iamApi(organization);
+  const rolesPath = `/organizations/${organization.id}/iam/roles`;
   const policyPage = location.pathname.endsWith("/policy");
   const editor = location.pathname.endsWith("/new") || Boolean(roleId);
   const [roles, setRoles] = useState<IAMRole[]>([]);
@@ -33,17 +35,21 @@ export function IAMPage() {
   const [description, setDescription] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const pagination = useCursorPagination();
 
   useEffect(() => {
     void client
-      .roles()
-      .then((result) => setRoles(result.roles))
+      .roles(editor || policyPage ? { limit: 100 } : pagination.request)
+      .then((result) => {
+        setRoles(result.roles);
+        pagination.setPageInfo(result.page_info);
+      })
       .catch((cause) =>
         setError(
           cause instanceof Error ? cause.message : "Unable to load roles",
         ),
       );
-  }, [organization.id]);
+  }, [organization.id, editor, policyPage, pagination.cursor]);
 
   const current = roles.find((role) => role.id === roleId);
   useEffect(() => {
@@ -83,7 +89,7 @@ export function IAMPage() {
           permissions,
         });
       }
-      navigate("../roles");
+      navigate(rolesPath, { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to save role");
     }
@@ -109,7 +115,7 @@ export function IAMPage() {
     return (
       <main className="content editor-page">
         <Button variant="ghost" size="sm" asChild>
-          <Link to="../roles">
+          <Link to={rolesPath}>
             <ArrowLeft />
             Roles
           </Link>
@@ -128,7 +134,12 @@ export function IAMPage() {
             <form onSubmit={submit}>
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="role-name">Role name</FieldLabel>
+                  <FieldLabel
+                    htmlFor="role-name"
+                    hint="Stable identifier used by policy bindings; choose a concise camelCase name."
+                  >
+                    Role name
+                  </FieldLabel>
                   <Input
                     type="text"
                     inputMode="text"
@@ -145,7 +156,10 @@ export function IAMPage() {
                   </FieldDescription>
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="role-display-name">
+                  <FieldLabel
+                    htmlFor="role-display-name"
+                    hint="Human-readable role name shown in the console."
+                  >
                     Display name
                   </FieldLabel>
                   <Input
@@ -160,7 +174,10 @@ export function IAMPage() {
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="role-description">
+                  <FieldLabel
+                    htmlFor="role-description"
+                    hint="Explain the responsibility represented by this role."
+                  >
                     Description
                   </FieldLabel>
                   <Input
@@ -169,11 +186,14 @@ export function IAMPage() {
                     id="role-description"
                     disabled={current?.predefined}
                     value={description}
+                    placeholder="Can manage billing catalog and invoices"
                     onChange={(event) => setDescription(event.target.value)}
                   />
                 </Field>
                 <Field>
-                  <FieldLabel>Permissions</FieldLabel>
+                  <FieldLabel hint="Permissions granted to every principal bound to this role.">
+                    Permissions
+                  </FieldLabel>
                   <RelationMultiCombobox
                     values={permissions}
                     options={permissionOptions}
@@ -187,7 +207,7 @@ export function IAMPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => navigate("../roles")}
+                    onClick={() => navigate(rolesPath)}
                   >
                     Cancel
                   </Button>
@@ -223,6 +243,11 @@ export function IAMPage() {
         <CardContent>
           <DataTable
             data={roles}
+            cursorPagination={{
+              cursor: pagination.cursor,
+              pageInfo: pagination.pageInfo,
+              onCursorChange: pagination.setCursor,
+            }}
             searchKey="display_name"
             searchPlaceholder="Search roles…"
             onRowClick={(role) => navigate(role.id)}

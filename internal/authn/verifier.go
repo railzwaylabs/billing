@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+
 	"github.com/railzwaylabs/billing/internal/iam/domain"
 	"github.com/railzwaylabs/billing/pkg/clock"
 )

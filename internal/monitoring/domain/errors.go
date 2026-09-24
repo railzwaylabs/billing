@@ -9,3 +9,7 @@ func NewRangeInvalidError(value string) error {
 func NewUnavailableError() error {
 	return apperror.New(apperror.KindUnavailable, "MONITORING_UNAVAILABLE", "Resource monitoring is temporarily unavailable")
 }
+
+func NewServiceInvalidError(value string) error {
+	return apperror.New(apperror.KindInvalid, "MONITORING_SERVICE_INVALID", "Monitoring service is not supported", apperror.Detail{Field: "service", Value: value})
+}

@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/railzwaylabs/billing/internal/organization/domain"
 	"github.com/railzwaylabs/billing/internal/platform/database"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
-	"gorm.io/gorm"
 )
 
 type organizationRepository struct {

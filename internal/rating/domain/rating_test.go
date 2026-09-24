@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
 	catalogue "github.com/railzwaylabs/billing/internal/catalogue/domain"
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
 )
@@ -14,16 +15,15 @@ func TestCalculateGraduatedTiers(t *testing.T) {
 	zero, _ := shareddomain.NewMoney("USD", 0)
 	halfDollar, _ := shareddomain.NewMoney("USD", 500_000_000)
 	start, _ := shareddomain.WholeQuantity(10_000)
-	price := catalogue.Price{
-		Currency:     "USD",
+	charge := catalogue.PriceCharge{
 		UnitQuantity: unit,
-		Tiers: []catalogue.PriceTier{
+		Tiers: []catalogue.ChargeTier{
 			{ID: uuid.New(), StartQuantity: shareddomain.Quantity{}, UnitAmount: zero},
 			{ID: uuid.New(), StartQuantity: start, UnitAmount: halfDollar},
 		},
 	}
 
-	total, breakdown, err := Calculate(usage, price)
+	total, breakdown, err := Calculate(usage, "USD", charge)
 	if err != nil {
 		t.Fatal(err)
 	}

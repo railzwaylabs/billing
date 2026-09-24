@@ -5,7 +5,8 @@
 A meter describes what an event value measures:
 
 - `code`: stable identifier such as `api_calls`.
-- `unit`: human-readable quantity such as `request`, `token`, or `GB-hour`.
+- `unit`: a code selected from the `measurement_units` reference table, such as
+  `request`, `token`, or `gib_hour`.
 - `aggregation`: `count` or `sum`.
 
 The unit is independent from the code. `code=api_calls` and `unit=request` is valid.
@@ -30,9 +31,18 @@ Requests also carry `Idempotency-Key`. The same key and body return the recorded
 }
 ```
 
-## Prices and tiers
+## Catalog and prices
 
-Every price has at least one tier. A non-tiered price is one tier starting at zero. Tier starts must be unique.
+A product is the catalog root. A versioned price belongs to one product and
+contains one or more price charges. Each charge selects its own meter, pricing
+model, pricing unit, and tiers. For example, one Compute Engine price can carry
+separate vCPU, memory, and persistent-disk charges.
+
+Currency is selected from the `currencies` reference table. It is not accepted
+as an arbitrary console value. The MVP supports `per_unit` and `graduated`:
+
+- `per_unit` requires exactly one tier starting at zero.
+- `graduated` requires one or more strictly increasing tiers starting at zero.
 
 | Start quantity | Unit amount |
 | ---: | ---: |
@@ -40,7 +50,19 @@ Every price has at least one tier. A non-tiered price is one tier starting at ze
 | 1,000 | USD 0.35 |
 | 10,000 | USD 0.20 |
 
-Usage is charged progressively across tiers. Invoice lines persist the pricing breakdown used by the calculation.
+Graduated usage is charged progressively across tiers. Rating creates one
+invoice line for every charge with billable usage and persists the charge,
+meter, pricing unit, effective period, and tier breakdown used by the
+calculation.
+
+## Subscriptions
+
+A customer has a subscription containing effective-dated items. Each item
+points to a price and has its own `[start_at, end_at)` period. Enabling Cloud
+Storage halfway through a cycle adds an item to the existing subscription; it
+does not create a second subscription. An item is stopped by setting `end_at`,
+not by deleting its history. All items in this MVP subscription use the same
+currency.
 
 ## Rating period
 
@@ -50,11 +72,10 @@ The scheduler currently rates the previous UTC calendar month as a half-open per
 [first day of previous month 00:00 UTC, first day of current month 00:00 UTC)
 ```
 
-An event at the exact period end belongs to the next period. Subscription end dates entered at midnight are treated inclusively through that calendar day.
+An event at the exact period end belongs to the next period. Subscription end dates entered at midnight are treated inclusively through that calendar day. Price and subscription-item effective periods are intersected with the billing period before usage is queried.
 
 ## Invoice lifecycle
 
 Generated invoices begin as `draft` and can currently be reviewed and edited. Finalized financial records should become immutable; corrections should eventually use credit notes or replacement invoices.
 
 Payment collection is outside the MVP.
-

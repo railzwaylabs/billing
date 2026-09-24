@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/railzwaylabs/billing/internal/consoleauth/domain"
 	"gorm.io/gorm"
+
+	"github.com/railzwaylabs/billing/internal/consoleauth/domain"
 )
 
 type Repository struct{ db *gorm.DB }
@@ -101,13 +102,16 @@ func (r *Repository) CreateBootstrapAdminIfEmpty(ctx context.Context, admin doma
 		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", "billing.console.bootstrap_admin").Error; err != nil {
 			return err
 		}
+
 		var count int64
 		if err := tx.Model(&userModel{}).Count(&count).Error; err != nil {
 			return err
 		}
+
 		if count > 0 {
 			return nil
 		}
+
 		if err := tx.Create(&userModel{
 			ID: admin.ID, Username: admin.Username, Email: admin.Email,
 			DisplayName: admin.DisplayName, Status: "active", PasswordChangeRequired: true,
@@ -115,15 +119,18 @@ func (r *Repository) CreateBootstrapAdminIfEmpty(ctx context.Context, admin doma
 		}).Error; err != nil {
 			return err
 		}
+
 		if err := tx.Create(&passwordCredentialModel{
 			UserID: admin.ID, PasswordHash: admin.PasswordHash,
 			CreatedAt: admin.CreatedAt, UpdatedAt: admin.CreatedAt,
 		}).Error; err != nil {
 			return err
 		}
+
 		created = true
 		return nil
 	})
+
 	return created, err
 }
 
@@ -280,17 +287,5 @@ func toUser(model userModel) domain.User {
 		Disabled: model.Status == "disabled", PasswordChangeRequired: model.PasswordChangeRequired,
 		PasswordPromptedAt: model.PasswordPromptedAt,
 		LastLoginAt:        model.LastLoginAt, CreatedAt: model.CreatedAt, UpdatedAt: model.UpdatedAt,
-	}
-}
-
-func toSession(model sessionModel) domain.Session {
-	ipAddress := ""
-	if model.IPAddress != nil {
-		ipAddress = *model.IPAddress
-	}
-	return domain.Session{
-		ID: model.ID, UserID: model.UserID, TokenHash: append([]byte(nil), model.TokenHash...),
-		ExpiresAt: model.ExpiresAt, LastSeenAt: model.LastSeenAt, RevokedAt: model.RevokedAt,
-		UserAgent: model.UserAgent, IPAddress: ipAddress, CreatedAt: model.CreatedAt,
 	}
 }

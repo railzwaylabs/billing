@@ -9,9 +9,10 @@ import (
 	httppprof "net/http/pprof"
 	"time"
 
-	"github.com/railzwaylabs/billing/internal/platform/logging"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+
+	"github.com/railzwaylabs/billing/internal/platform/logging"
 )
 
 type Config struct {
@@ -62,20 +63,24 @@ func RegisterLogMode(server *Server, controller *logging.LevelController) {
 	server.mux.HandleFunc("GET /log/mode", func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, http.StatusOK, map[string]string{"level": controller.Level()})
 	})
+
 	server.mux.HandleFunc("PUT /log/mode", func(writer http.ResponseWriter, request *http.Request) {
 		var body struct {
 			Level string `json:"level"`
 		}
+
 		decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, 1024))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&body); err != nil {
 			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
 			return
 		}
+
 		if err := controller.SetLevel(body.Level); err != nil {
 			writeJSON(writer, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
+
 		writeJSON(writer, http.StatusOK, map[string]string{"level": controller.Level()})
 	})
 }

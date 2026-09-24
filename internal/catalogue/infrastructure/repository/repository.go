@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/railzwaylabs/billing/internal/catalogue/domain"
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
 	"github.com/railzwaylabs/billing/internal/shared/pagination"
-	"gorm.io/gorm"
 )
 
 type ProductRepository struct{ db *gorm.DB }
@@ -19,7 +20,7 @@ type ProductRepository struct{ db *gorm.DB }
 func NewProductRepository(db *gorm.DB) domain.ProductRepository { return &ProductRepository{db: db} }
 
 func (r *ProductRepository) Create(ctx context.Context, v domain.Product) (domain.Product, error) {
-	m := productModel{ID: v.ID, OrganizationID: v.OrganizationID, MeterID: v.MeterID, Code: v.Code, Name: v.Name, Description: v.Description, Status: v.Status, Metadata: v.Metadata, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+	m := productModel{ID: v.ID, OrganizationID: v.OrganizationID, Code: v.Code, Name: v.Name, Description: v.Description, Status: v.Status, Metadata: v.Metadata, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 	return v, r.db.WithContext(ctx).Create(&m).Error
 }
 
@@ -57,18 +58,13 @@ func (r *ProductRepository) GetByID(ctx context.Context, o, id uuid.UUID) (domai
 	return toProduct(m), err
 }
 
-func (r *ProductRepository) GetByMeterID(ctx context.Context, o, meterID uuid.UUID) (domain.Product, error) {
-	var m productModel
-	err := r.db.WithContext(ctx).Where("organization_id = ? AND meter_id = ?", o, meterID).Take(&m).Error
-	return toProduct(m), err
-}
 func (r *ProductRepository) Update(ctx context.Context, v domain.Product) (domain.Product, error) {
-	err := r.db.WithContext(ctx).Model(&productModel{}).Where("organization_id = ? AND id = ?", v.OrganizationID, v.ID).Updates(map[string]any{"meter_id": v.MeterID, "code": v.Code, "name": v.Name, "description": v.Description, "status": v.Status, "metadata": v.Metadata, "updated_at": v.UpdatedAt}).Error
+	err := r.db.WithContext(ctx).Model(&productModel{}).Where("organization_id = ? AND id = ?", v.OrganizationID, v.ID).Updates(map[string]any{"code": v.Code, "name": v.Name, "description": v.Description, "status": v.Status, "metadata": v.Metadata, "updated_at": v.UpdatedAt}).Error
 	return v, err
 }
 
 func toProduct(m productModel) domain.Product {
-	return domain.Product{ID: m.ID, OrganizationID: m.OrganizationID, MeterID: m.MeterID, Code: m.Code, Name: m.Name, Description: m.Description, Status: m.Status, Metadata: m.Metadata, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	return domain.Product{ID: m.ID, OrganizationID: m.OrganizationID, Code: m.Code, Name: m.Name, Description: m.Description, Status: m.Status, Metadata: m.Metadata, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
 }
 
 type PriceRepository struct{ db *gorm.DB }
@@ -80,10 +76,8 @@ func (r *PriceRepository) Create(ctx context.Context, v domain.Price) (domain.Pr
 		if err := tx.Create(priceToModel(v)).Error; err != nil {
 			return err
 		}
-		for _, t := range v.Tiers {
-			if err := tx.Create(tierToModel(t)).Error; err != nil {
-				return err
-			}
+		if err := createCharges(tx, v.Charges); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -149,13 +143,11 @@ func (r *PriceRepository) Update(ctx context.Context, v domain.Price) (domain.Pr
 		if err := tx.Model(&priceModel{}).Where("organization_id=? AND id=?", v.OrganizationID, v.ID).Updates(priceToModel(v)).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("organization_id=? AND price_id=?", v.OrganizationID, v.ID).Delete(&priceTierModel{}).Error; err != nil {
+		if err := tx.Where("organization_id=? AND price_id=?", v.OrganizationID, v.ID).Delete(&priceChargeModel{}).Error; err != nil {
 			return err
 		}
-		for _, t := range v.Tiers {
-			if err := tx.Create(tierToModel(t)).Error; err != nil {
-				return err
-			}
+		if err := createCharges(tx, v.Charges); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -163,37 +155,55 @@ func (r *PriceRepository) Update(ctx context.Context, v domain.Price) (domain.Pr
 }
 
 func (r *PriceRepository) load(ctx context.Context, m priceModel) (domain.Price, error) {
-	var ts []priceTierModel
-	if err := r.db.WithContext(ctx).Where("organization_id=? AND price_id=?", m.OrganizationID, m.ID).Order("start_quantity").Find(&ts).Error; err != nil {
+	var charges []priceChargeModel
+	if err := r.db.WithContext(ctx).Where("organization_id=? AND price_id=?", m.OrganizationID, m.ID).Order("created_at, id").Find(&charges).Error; err != nil {
 		return domain.Price{}, err
 	}
-
-	q, err := parseFixed(m.UnitQuantity, 6)
-	if err != nil {
-		return domain.Price{}, err
-	}
-
-	v := domain.Price{ID: m.ID, OrganizationID: m.OrganizationID, ProductID: m.ProductID, Currency: m.Currency, UnitQuantity: shareddomain.Quantity{Micros: q}, AggregationInterval: m.AggregationInterval, BillingInterval: m.IntervalType, IntervalCount: m.IntervalCount, EffectiveAt: m.EffectiveAt, EffectiveUntil: m.EffectiveUntil, Status: m.Status, Metadata: m.Metadata, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
-	for _, t := range ts {
-		start, e := parseFixed(t.StartQuantity, 6)
-		if e != nil {
-			return domain.Price{}, e
+	v := domain.Price{ID: m.ID, OrganizationID: m.OrganizationID, ProductID: m.ProductID, Currency: m.Currency, BillingInterval: m.IntervalType, IntervalCount: m.IntervalCount, EffectiveAt: m.EffectiveAt, EffectiveUntil: m.EffectiveUntil, Status: m.Status, Metadata: m.Metadata, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+	for _, cm := range charges {
+		unit, err := parseFixed(cm.UnitQuantity, 6)
+		if err != nil {
+			return domain.Price{}, err
 		}
-		amount, e := parseFixed(t.UnitAmount, 9)
-		if e != nil {
-			return domain.Price{}, e
+		charge := domain.PriceCharge{ID: cm.ID, OrganizationID: cm.OrganizationID, PriceID: cm.PriceID, MeterID: cm.MeterID, Code: cm.Code, Name: cm.Name, PricingModel: cm.PricingModel, UnitQuantity: shareddomain.Quantity{Micros: unit}, CreatedAt: cm.CreatedAt, UpdatedAt: cm.UpdatedAt}
+		var tiers []chargeTierModel
+		if err := r.db.WithContext(ctx).Where("organization_id=? AND charge_id=?", cm.OrganizationID, cm.ID).Order("start_quantity").Find(&tiers).Error; err != nil {
+			return domain.Price{}, err
 		}
-		v.Tiers = append(v.Tiers, domain.PriceTier{ID: t.ID, OrganizationID: t.OrganizationID, PriceID: t.PriceID, StartQuantity: shareddomain.Quantity{Micros: start}, UnitAmount: shareddomain.Money{Currency: m.Currency, Nanos: amount}, CreatedAt: t.CreatedAt})
+		for _, tm := range tiers {
+			start, err := parseFixed(tm.StartQuantity, 6)
+			if err != nil {
+				return domain.Price{}, err
+			}
+			amount, err := parseFixed(tm.UnitAmount, 9)
+			if err != nil {
+				return domain.Price{}, err
+			}
+			charge.Tiers = append(charge.Tiers, domain.ChargeTier{ID: tm.ID, OrganizationID: tm.OrganizationID, ChargeID: tm.ChargeID, StartQuantity: shareddomain.Quantity{Micros: start}, UnitAmount: shareddomain.Money{Currency: m.Currency, Nanos: amount}, CreatedAt: tm.CreatedAt})
+		}
+		v.Charges = append(v.Charges, charge)
 	}
 	return v, nil
 }
 
 func priceToModel(v domain.Price) *priceModel {
-	return &priceModel{ID: v.ID, OrganizationID: v.OrganizationID, ProductID: v.ProductID, Currency: v.Currency, UnitQuantity: formatFixed(v.UnitQuantity.Micros, 6), AggregationInterval: v.AggregationInterval, IntervalType: v.BillingInterval, IntervalCount: v.IntervalCount, EffectiveAt: v.EffectiveAt, EffectiveUntil: v.EffectiveUntil, Status: v.Status, Metadata: v.Metadata, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+	return &priceModel{ID: v.ID, OrganizationID: v.OrganizationID, ProductID: v.ProductID, Currency: v.Currency, IntervalType: v.BillingInterval, IntervalCount: v.IntervalCount, EffectiveAt: v.EffectiveAt, EffectiveUntil: v.EffectiveUntil, Status: v.Status, Metadata: v.Metadata, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 }
 
-func tierToModel(v domain.PriceTier) *priceTierModel {
-	return &priceTierModel{ID: v.ID, OrganizationID: v.OrganizationID, PriceID: v.PriceID, StartQuantity: formatFixed(v.StartQuantity.Micros, 6), UnitAmount: formatFixed(v.UnitAmount.Nanos, 9), CreatedAt: v.CreatedAt}
+func createCharges(tx *gorm.DB, charges []domain.PriceCharge) error {
+	for _, charge := range charges {
+		m := priceChargeModel{ID: charge.ID, OrganizationID: charge.OrganizationID, PriceID: charge.PriceID, MeterID: charge.MeterID, Code: charge.Code, Name: charge.Name, PricingModel: charge.PricingModel, UnitQuantity: formatFixed(charge.UnitQuantity.Micros, 6), CreatedAt: charge.CreatedAt, UpdatedAt: charge.UpdatedAt}
+		if err := tx.Create(&m).Error; err != nil {
+			return err
+		}
+		for _, tier := range charge.Tiers {
+			tm := chargeTierModel{ID: tier.ID, OrganizationID: tier.OrganizationID, ChargeID: tier.ChargeID, StartQuantity: formatFixed(tier.StartQuantity.Micros, 6), UnitAmount: formatFixed(tier.UnitAmount.Nanos, 9), CreatedAt: tier.CreatedAt}
+			if err := tx.Create(&tm).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func formatFixed(v int64, scale int) string {

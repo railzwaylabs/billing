@@ -1,12 +1,15 @@
 package main
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/railzwaylabs/billing/internal/catalogue"
 	"github.com/railzwaylabs/billing/internal/config"
 	"github.com/railzwaylabs/billing/internal/consoleauth"
 	"github.com/railzwaylabs/billing/internal/customer"
 	"github.com/railzwaylabs/billing/internal/iam"
 	"github.com/railzwaylabs/billing/internal/invoice"
+	"github.com/railzwaylabs/billing/internal/logviewer"
 	"github.com/railzwaylabs/billing/internal/meter"
 	"github.com/railzwaylabs/billing/internal/monitoring"
 	"github.com/railzwaylabs/billing/internal/organization"
@@ -18,7 +21,6 @@ import (
 	"github.com/railzwaylabs/billing/internal/subscription"
 	"github.com/railzwaylabs/billing/internal/usage"
 	"github.com/railzwaylabs/billing/pkg/clock"
-	"go.uber.org/fx"
 )
 
 func main() {
@@ -41,5 +43,6 @@ func main() {
 		usage.Module,
 		invoice.Module,
 		monitoring.Module,
+		logviewer.Module,
 	).Run()
 }

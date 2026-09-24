@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
 	"github.com/railzwaylabs/billing/internal/invoice/application"
 	"github.com/railzwaylabs/billing/internal/invoice/domain"
 	shareddomain "github.com/railzwaylabs/billing/internal/shared/domain"
@@ -34,6 +35,7 @@ type lineRequest struct {
 	SubscriptionItemID        uuid.UUID   `json:"subscription_item_id"`
 	ProductID                 uuid.UUID   `json:"product_id" binding:"required"`
 	PriceID                   uuid.UUID   `json:"price_id" binding:"required"`
+	PriceChargeID             uuid.UUID   `json:"price_charge_id" binding:"required"`
 	MeterID                   uuid.UUID   `json:"meter_id" binding:"required"`
 	Description               string      `json:"description" binding:"required"`
 	UsageQuantityMicros       int64       `json:"usage_quantity_micros"`
@@ -84,7 +86,7 @@ func input(o uuid.UUID, r request) domain.Invoice {
 		v.Lines = append(v.Lines, domain.Line{
 			SubscriptionID:     l.SubscriptionID,
 			SubscriptionItemID: l.SubscriptionItemID,
-			ProductID:          l.ProductID, PriceID: l.PriceID, MeterID: l.MeterID, Description: l.Description, UsageQuantity: shareddomain.Quantity{Micros: l.UsageQuantityMicros}, Unit: l.Unit, PricingUnitQuantity: shareddomain.Quantity{Micros: l.PricingUnitQuantityMicros}, UnitAmount: shareddomain.Money{Currency: r.Currency, Nanos: l.UnitAmountNanos}, Amount: shareddomain.Money{Currency: r.Currency, Nanos: l.AmountNanos}, PricingDetails: l.PricingDetails})
+			ProductID:          l.ProductID, PriceID: l.PriceID, PriceChargeID: l.PriceChargeID, MeterID: l.MeterID, Description: l.Description, UsageQuantity: shareddomain.Quantity{Micros: l.UsageQuantityMicros}, Unit: l.Unit, PricingUnitQuantity: shareddomain.Quantity{Micros: l.PricingUnitQuantityMicros}, UnitAmount: shareddomain.Money{Currency: r.Currency, Nanos: l.UnitAmountNanos}, Amount: shareddomain.Money{Currency: r.Currency, Nanos: l.AmountNanos}, PricingDetails: l.PricingDetails})
 	}
 
 	return v

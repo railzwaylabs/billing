@@ -5,19 +5,23 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/railzwaylabs/billing/pkg/clock"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+
+	"github.com/railzwaylabs/billing/pkg/clock"
 )
 
+// SchedulerConfig controls how often the worker checks completed billing periods.
 type SchedulerConfig struct {
 	Interval time.Duration
 }
 
+// SchedulerRepository finds tenants that have billable subscriptions.
 type SchedulerRepository interface {
 	ListOrganizationsForPeriod(context.Context, time.Time, time.Time) ([]uuid.UUID, error)
 }
 
+// Scheduler runs rating through the Fx lifecycle.
 type Scheduler struct {
 	config     SchedulerConfig
 	repository SchedulerRepository
@@ -25,13 +29,24 @@ type Scheduler struct {
 	clock      clock.Clock
 }
 
-func NewScheduler(config SchedulerConfig, repository SchedulerRepository, rating *Service, clock clock.Clock) *Scheduler {
-	if config.Interval <= 0 {
-		config.Interval = time.Minute
-	}
-	return &Scheduler{config: config, repository: repository, rating: rating, clock: clock}
+// SchedulerParams declares Scheduler dependencies.
+type SchedulerParams struct {
+	fx.In
+	Config     SchedulerConfig
+	Repository SchedulerRepository
+	Rating     *Service
+	Clock      clock.Clock
 }
 
+// NewScheduler constructs the background rating scheduler.
+func NewScheduler(p SchedulerParams) *Scheduler {
+	if p.Config.Interval <= 0 {
+		p.Config.Interval = time.Minute
+	}
+	return &Scheduler{config: p.Config, repository: p.Repository, rating: p.Rating, clock: p.Clock}
+}
+
+// Register attaches scheduler start and stop hooks to the process lifecycle.
 func (s *Scheduler) Register(lifecycle fx.Lifecycle, logger *zap.Logger) {
 	var cancel context.CancelFunc
 	var done chan struct{}
